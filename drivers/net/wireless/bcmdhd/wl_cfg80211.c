@@ -11340,7 +11340,8 @@ void wl_cfg80211_detach(void *para)
 
 static void wl_wakeup_event(struct bcm_cfg80211 *cfg)
 {
-	if (cfg->event_tsk.thr_pid >= 0) {
+	dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
+	if (dhd->up && cfg->event_tsk.thr_pid >= 0) {
 		DHD_OS_WAKE_LOCK(cfg->pub);
 		up(&cfg->event_tsk.sema);
 	}
