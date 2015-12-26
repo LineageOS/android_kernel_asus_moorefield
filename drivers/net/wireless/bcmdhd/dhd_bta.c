@@ -5,9 +5,7 @@
  *
  * $Id: dhd_bta.c 434434 2013-11-06 07:16:02Z $
  */
-#ifndef WLBTAMP
 #error "WLBTAMP is not defined"
-#endif	/* WLBTAMP */
 
 #include <typedefs.h>
 #include <osl.h>

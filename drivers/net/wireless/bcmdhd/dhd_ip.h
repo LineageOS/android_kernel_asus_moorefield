@@ -26,6 +26,7 @@ typedef enum pkt_frag
 } pkt_frag_t;
 
 extern pkt_frag_t pkt_frag_info(osl_t *osh, void *p);
+extern bool pkt_is_dhcp(osl_t *osh, void *p);
 
 #ifdef DHDTCPACK_SUPPRESS
 #define	TCPACKSZMIN	(ETHER_HDR_LEN + IPV4_MIN_HEADER_LEN + TCP_MIN_HEADER_LEN)

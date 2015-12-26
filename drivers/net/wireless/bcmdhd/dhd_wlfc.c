@@ -23,9 +23,7 @@
 #include <wlfc_proto.h>
 #include <dhd_wlfc.h>
 #endif
-#ifdef DHDTCPACK_SUPPRESS
 #include <dhd_ip.h>
-#endif /* DHDTCPACK_SUPPRESS */
 
 
 /*
@@ -596,7 +594,7 @@ _dhd_wlfc_prec_drop(dhd_pub_t *dhdp, int prec, void* p, bool bPktInQ)
 	void *pout = NULL;
 
 	ASSERT(dhdp && p);
-	ASSERT(prec >= 0 && prec <= WLFC_PSQ_PREC_COUNT);
+	ASSERT(prec >= 0 && prec < WLFC_PSQ_PREC_COUNT);
 
 	ctx = (athost_wl_status_info_t*)dhdp->wlfc_state;
 
@@ -981,7 +979,7 @@ _dhd_wlfc_pretx_pktprocess(athost_wl_status_info_t* ctx,
 	bool send_tim_update = FALSE;
 	uint32 htod = 0;
 	uint16 htodseq = 0;
-	uint8 free_ctr;
+	uint8 free_ctr, flags = 0;
 	int gen = 0xff;
 	dhd_pub_t *dhdp = (dhd_pub_t *)ctx->dhdp;
 
@@ -1035,22 +1033,25 @@ _dhd_wlfc_pretx_pktprocess(athost_wl_status_info_t* ctx,
 		return BCME_ERROR;
 	}
 
-	WL_TXSTATUS_SET_FREERUNCTR(htod, free_ctr);
-	WL_TXSTATUS_SET_HSLOT(htod, hslot);
-	WL_TXSTATUS_SET_FIFO(htod, DHD_PKTTAG_FIFO(PKTTAG(p)));
-	WL_TXSTATUS_SET_FLAGS(htod, WLFC_PKTFLAG_PKTFROMHOST);
-	WL_TXSTATUS_SET_GENERATION(htod, gen);
-	DHD_PKTTAG_SETPKTDIR(PKTTAG(p), 1);
-
+	flags = WLFC_PKTFLAG_PKTFROMHOST;
 	if (!DHD_PKTTAG_CREDITCHECK(PKTTAG(p))) {
 		/*
 		Indicate that this packet is being sent in response to an
 		explicit request from the firmware side.
 		*/
-		WLFC_PKTFLAG_SET_PKTREQUESTED(htod);
-	} else {
-		WLFC_PKTFLAG_CLR_PKTREQUESTED(htod);
+		flags |= WLFC_PKTFLAG_PKT_REQUESTED;
 	}
+	if (pkt_is_dhcp(ctx->osh, p)) {
+		flags |= WLFC_PKTFLAG_PKT_FORCELOWRATE;
+	}
+
+	WL_TXSTATUS_SET_FREERUNCTR(htod, free_ctr);
+	WL_TXSTATUS_SET_HSLOT(htod, hslot);
+	WL_TXSTATUS_SET_FIFO(htod, DHD_PKTTAG_FIFO(PKTTAG(p)));
+	WL_TXSTATUS_SET_FLAGS(htod, flags);
+	WL_TXSTATUS_SET_GENERATION(htod, gen);
+	DHD_PKTTAG_SETPKTDIR(PKTTAG(p), 1);
+
 
 	rc = _dhd_wlfc_pushheader(ctx, p, send_tim_update,
 		entry->traffic_lastreported_bmp, entry->mac_handle, htod, htodseq, FALSE);
@@ -2505,6 +2506,9 @@ int dhd_wlfc_enable(dhd_pub_t *dhd)
 	}
 
 	/* allocate space to track txstatus propagated from firmware */
+#ifdef WLFC_STATE_PREALLOC
+	if (!dhd->wlfc_state)
+#endif
 	dhd->wlfc_state = MALLOC(dhd->osh, sizeof(athost_wl_status_info_t));
 	if (dhd->wlfc_state == NULL) {
 		rc = BCME_NOMEM;
@@ -2522,8 +2526,10 @@ int dhd_wlfc_enable(dhd_pub_t *dhd)
 	if (!WLFC_GET_AFQ(dhd->wlfc_mode)) {
 		wlfc->hanger = _dhd_wlfc_hanger_create(dhd->osh, WLFC_HANGER_MAXITEMS);
 		if (wlfc->hanger == NULL) {
+#ifndef WLFC_STATE_PREALLOC
 			MFREE(dhd->osh, dhd->wlfc_state, sizeof(athost_wl_status_info_t));
 			dhd->wlfc_state = NULL;
+#endif
 			rc = BCME_NOMEM;
 			goto exit;
 		}
@@ -3351,8 +3357,10 @@ dhd_wlfc_deinit(dhd_pub_t *dhd)
 
 
 	/* free top structure */
+#ifndef WLFC_STATE_PREALLOC
 	MFREE(dhd->osh, dhd->wlfc_state, sizeof(athost_wl_status_info_t));
 	dhd->wlfc_state = NULL;
+#endif
 	dhd->proptxstatus_mode = hostreorder ?
 		WLFC_ONLY_AMPDU_HOSTREORDER : WLFC_FCMODE_NONE;
 

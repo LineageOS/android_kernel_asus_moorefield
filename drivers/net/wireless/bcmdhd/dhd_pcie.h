@@ -27,7 +27,8 @@
 #define	REMAP_ISADDR(bus, a)		(((a) >= ((bus)->orig_ramsize)) && ((a) < ((bus)->ramsize)))
 
 #define MAX_DHD_TX_FLOWS	256
-
+#define PCIE_LINK_DOWN		0xFFFFFFFF
+#define DHD_INVALID 		-1
 /* user defined data structures */
 #ifdef DHD_DEBUG
 /* Device console log buffer state */
@@ -118,7 +119,10 @@ typedef struct dhd_bus {
 	uint32  *pcie_mb_intr_addr;
 	void    *pcie_mb_intr_osh;
 	bool	sleep_allowed;
-
+#ifdef DHD_WAKE_STATUS
+	uint		rxwake;
+	uint		rcwake;
+#endif
 	/* version 3 shared struct related info start */
 	ring_sh_info_t	ring_sh[BCMPCIE_COMMON_MSGRINGS + MAX_DHD_TX_FLOWS];
 	uint8	h2d_ring_count;
@@ -138,7 +142,7 @@ typedef struct dhd_bus {
 	uint8	txmode_push;
 	uint32 max_sub_queues;
 	bool	db1_for_mb;
-
+	bool	suspended;
 } dhd_bus_t;
 
 /* function declarations */
@@ -163,6 +167,11 @@ extern int dhdpcie_disable_device(dhd_bus_t *bus);
 extern int dhdpcie_enable_device(dhd_bus_t *bus);
 extern int dhdpcie_alloc_resource(dhd_bus_t *bus);
 extern void dhdpcie_free_resource(dhd_bus_t *bus);
-
+extern int dhdpcie_bus_request_irq(struct dhd_bus *bus);
 extern int dhd_buzzz_dump_dngl(dhd_bus_t *bus);
+#ifdef DHD_WAKE_STATUS
+int bcmpcie_get_total_wake(struct dhd_bus *bus);
+int bcmpcie_set_get_wake(struct dhd_bus *bus, int flag);
+#endif
+
 #endif /* dhd_pcie_h */

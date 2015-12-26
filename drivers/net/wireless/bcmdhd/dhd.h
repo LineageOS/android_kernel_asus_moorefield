@@ -81,6 +81,9 @@ enum dhd_bus_state {
 #define CONCURENT_MASK		0x00F0
 #endif /* (NDISVER >= 0x0600)  */
 
+#define DHD_IF_ROLE_STA(role)	(role == WLC_E_IF_ROLE_STA ||\
+				role == WLC_E_IF_ROLE_P2P_CLIENT)
+
 /* For supporting multiple interfaces */
 #define DHD_MAX_IFS	16
 #define DHD_DEL_IF	-0xE
@@ -112,6 +115,7 @@ enum dhd_op_flags {
 
 #define DHD_SCAN_ASSOC_ACTIVE_TIME	20 /* ms: Embedded default Active setting from DHD */
 #define DHD_SCAN_UNASSOC_ACTIVE_TIME	40 /* ms: Embedded def. Unassoc Active setting from DHD */
+#define DHD_SCAN_UNASSOC_ACTIVE_TIME_PS	30
 #define DHD_SCAN_PASSIVE_TIME		130 /* ms: Embedded default Passive setting from DHD */
 
 #ifndef POWERUP_MAX_RETRY
@@ -145,7 +149,8 @@ enum dhd_prealloc_index {
 #if defined(STATIC_WL_PRIV_STRUCT)
 	DHD_PREALLOC_WIPHY_ESCAN0 = 5,
 #endif /* STATIC_WL_PRIV_STRUCT */
-	DHD_PREALLOC_DHD_INFO = 7
+	DHD_PREALLOC_DHD_INFO = 7,
+	DHD_PREALLOC_IF_FLOW_LKUP = 9
 };
 
 /* Packet alignment for most efficient SDIO (can change based on platform) */
@@ -282,6 +287,7 @@ typedef struct dhd_pub {
 	int pktfilter_count;
 
 	wl_country_t dhd_cspec;		/* Current Locale info */
+	bool force_country_change;
 	char eventmask[WL_EVENTING_MASK_LEN];
 	int	op_mode;				/* STA, HostAPD, WFD, SoftAP */
 
@@ -296,9 +302,6 @@ typedef struct dhd_pub {
 	struct mutex 	wl_softap_lock;		 /* lock/unlock for any SoftAP/STA settings */
 #endif 
 
-#ifdef WLBTAMP
-	uint16	maxdatablks;
-#endif /* WLBTAMP */
 #ifdef PROP_TXSTATUS
 	bool	wlfc_enabled;
 	int	wlfc_mode;
@@ -329,6 +332,9 @@ typedef struct dhd_pub {
 #endif /* PROP_TXSTATUS */
 #ifdef PNO_SUPPORT
 	void *pno_state;
+#endif
+#ifdef RTT_SUPPORT
+	void *rtt_state;
 #endif
 	bool	dongle_isolation;
 	bool	dongle_trap_occured;	/* flag for sending HANG event to upper layer */
@@ -371,12 +377,14 @@ typedef struct dhd_pub {
 	void    *flowid_allocator;  /* unique flowid allocator */
 	void	*flow_ring_table;   /* flow ring table, include prot and bus info */
 	void	*if_flow_lkup;      /* per interface flowid lkup hash table */
+	void	*flowid_lock;		/* per os lock for flowid info protection */
 	uint32  num_flow_rings;
 	uint8  flow_prio_map[NUMPRIO];
 	uint8	flow_prio_map_type;
 	char enable_log[MAX_EVENT];
 	bool dma_d2h_ring_upd_support;
 	bool dma_h2d_ring_upd_support;
+	int  short_dwell_time;
 #ifdef DHD_WMF
 	bool wmf_ucast_igmp;
 #ifdef DHD_IGMP_UCQUERY
@@ -575,6 +583,8 @@ extern int dhd_register_if(dhd_pub_t *dhdp, int idx, bool need_rtnl_lock);
 /* Indication from bus module regarding removal/absence of dongle */
 extern void dhd_detach(dhd_pub_t *dhdp);
 extern void dhd_free(dhd_pub_t *dhdp);
+extern void dhd_clear(dhd_pub_t *dhdp);
+
 
 /* Indication from bus module to change flow-control state */
 extern void dhd_txflowcontrol(dhd_pub_t *dhdp, int ifidx, bool on);
@@ -596,6 +606,29 @@ extern void dhd_sched_dpc(dhd_pub_t *dhdp);
 /* Notify tx completion */
 extern void dhd_txcomplete(dhd_pub_t *dhdp, void *txp, bool success);
 
+#define WIFI_FEATURE_INFRA              0x0001      /* Basic infrastructure mode        */
+#define WIFI_FEATURE_INFRA_5G           0x0002      /* Support for 5 GHz Band           */
+#define WIFI_FEATURE_HOTSPOT            0x0004      /* Support for GAS/ANQP             */
+#define WIFI_FEATURE_P2P                0x0008      /* Wifi-Direct                      */
+#define WIFI_FEATURE_SOFT_AP            0x0010      /* Soft AP                          */
+#define WIFI_FEATURE_GSCAN              0x0020      /* Google-Scan APIs                 */
+#define WIFI_FEATURE_NAN                0x0040      /* Neighbor Awareness Networking    */
+#define WIFI_FEATURE_D2D_RTT            0x0080      /* Device-to-device RTT             */
+#define WIFI_FEATURE_D2AP_RTT           0x0100      /* Device-to-AP RTT                 */
+#define WIFI_FEATURE_BATCH_SCAN         0x0200      /* Batched Scan (legacy)            */
+#define WIFI_FEATURE_PNO                0x0400      /* Preferred network offload        */
+#define WIFI_FEATURE_ADDITIONAL_STA     0x0800      /* Support for two STAs             */
+#define WIFI_FEATURE_TDLS               0x1000      /* Tunnel directed link setup       */
+#define WIFI_FEATURE_TDLS_OFFCHANNEL    0x2000      /* Support for TDLS off channel     */
+#define WIFI_FEATURE_EPR                0x4000      /* Enhanced power reporting         */
+#define WIFI_FEATURE_AP_STA             0x8000      /* Support for AP STA Concurrency   */
+#define WIFI_FEATURE_LINKSTAT           0x10000     /* Support for Linkstats            */
+
+#define MAX_FEATURE_SET_CONCURRRENT_GROUPS  3
+
+extern int dhd_dev_get_feature_set(struct net_device *dev);
+extern int *dhd_dev_get_feature_set_matrix(struct net_device *dev, int *num);
+
 /* OS independent layer functions */
 extern int dhd_os_proto_block(dhd_pub_t * pub);
 extern int dhd_os_proto_unblock(dhd_pub_t * pub);
@@ -605,11 +638,6 @@ extern int dhd_os_d3ack_wait(dhd_pub_t * pub, uint * condition, bool * pending);
 extern int dhd_os_d3ack_wake(dhd_pub_t * pub);
 extern unsigned int dhd_os_get_ioctl_resp_timeout(void);
 extern void dhd_os_set_ioctl_resp_timeout(unsigned int timeout_msec);
-#if 0 && (NDISVER >= 0x0600)
-#define dhd_os_open_image(a) wl_os_open_image(a)
-#define dhd_os_close_image(a) wl_os_close_image(a)
-#define dhd_os_get_image_block(a, b, c) wl_os_get_image_block(a, b, c)
-#endif /* (NDISVER >= 0x0600)  */
 
 extern int dhd_os_get_image_block(char * buf, int len, void * image);
 extern void * dhd_os_open_image(char * filename);
@@ -637,8 +665,13 @@ extern void dhd_os_sdunlock_eventq(dhd_pub_t * pub);
 extern bool dhd_os_check_hang(dhd_pub_t *dhdp, int ifidx, int ret);
 extern int dhd_os_send_hang_message(dhd_pub_t *dhdp);
 extern void dhd_set_version_info(dhd_pub_t *pub, char *fw);
+extern void dhd_set_short_dwell_time(dhd_pub_t *dhd, int set);
+#ifdef CUSTOM_SET_SHORT_DWELL_TIME
+extern void net_set_short_dwell_time(struct net_device *dev, int set);
+#endif
 extern bool dhd_os_check_if_up(dhd_pub_t *pub);
 extern int dhd_os_check_wakelock(dhd_pub_t *pub);
+extern int dhd_os_check_wakelock_all(dhd_pub_t *pub);
 extern int dhd_get_instance(dhd_pub_t *pub);
 #ifdef CUSTOM_SET_CPUCORE
 extern void dhd_set_cpucore(dhd_pub_t *dhd, int set);
@@ -860,10 +893,16 @@ extern uint dhd_force_tx_queueing;
 /* hooks for custom PNO Event wake lock to guarantee enough time
 	for the Platform to detect Event before system suspended
 */
-#define DEFAULT_PNO_EVENT_LOCK_xTIME 	2 	/* multiplay of DHD_PACKET_TIMEOUT_MS */
+#define DEFAULT_PNO_EVENT_LOCK_xTIME 	2 	/* multiplier of DHD_PACKET_TIMEOUT_MS */
 #ifndef CUSTOM_PNO_EVENT_LOCK_xTIME
 #define CUSTOM_PNO_EVENT_LOCK_xTIME	 DEFAULT_PNO_EVENT_LOCK_xTIME
 #endif
+
+#define DEFAULT_DHCP_LOCK_xTIME		2 	/* multiplier of DHD_PACKET_TIMEOUT_MS */
+#ifndef CUSTOM_DHCP_LOCK_xTIME
+#define CUSTOM_DHCP_LOCK_xTIME		DEFAULT_DHCP_LOCK_xTIME
+#endif
+
 /* hooks for custom dhd_dpc_prio setting option via Makefile */
 #define DEFAULT_DHP_DPC_PRIO  1
 #ifndef CUSTOM_DPC_PRIO_SETTING
@@ -1016,9 +1055,13 @@ extern void dhd_os_general_spin_unlock(dhd_pub_t *pub, unsigned long flags);
 #define DHD_GENERAL_UNLOCK(dhdp, flags) \
 	dhd_os_general_spin_unlock((dhdp), (flags))
 
-/* Enable DHD flowring queue spin lock/unlock */
-#define DHD_QUEUE_LOCK(lock, flags)       (flags) = dhd_os_spin_lock(lock)
-#define DHD_QUEUE_UNLOCK(lock, flags)     dhd_os_spin_unlock((lock), (flags))
+/* Enable DHD flowring spin lock/unlock */
+#define DHD_FLOWRING_LOCK(lock, flags)     (flags) = dhd_os_spin_lock(lock)
+#define DHD_FLOWRING_UNLOCK(lock, flags)   dhd_os_spin_unlock((lock), (flags))
+
+/* Enable DHD common flowring info spin lock/unlock */
+#define DHD_FLOWID_LOCK(lock, flags)       (flags) = dhd_os_spin_lock(lock)
+#define DHD_FLOWID_UNLOCK(lock, flags)     dhd_os_spin_unlock((lock), (flags))
 
 
 

@@ -32,10 +32,6 @@ const uint bcmsdh_msglevel = BCMSDH_ERROR_VAL;
 /* local copy of bcm sd handler */
 bcmsdh_info_t * l_bcmsdh = NULL;
 
-#if 0 && (NDISVER < 0x0630)
-extern SDIOH_API_RC sdioh_detach(osl_t *osh, sdioh_info_t *sd);
-#endif
-
 #if defined(OOB_INTR_ONLY) && defined(HW_OOB)
 extern int
 sdioh_enable_hw_oob_intr(void *sdioh, bool enable);
@@ -86,10 +82,6 @@ bcmsdh_detach(osl_t *osh, void *sdh)
 	bcmsdh_info_t *bcmsdh = (bcmsdh_info_t *)sdh;
 
 	if (bcmsdh != NULL) {
-#if 0 && (NDISVER < 0x0630)
-		if (bcmsdh->sdioh)
-			sdioh_detach(osh, bcmsdh->sdioh);
-#endif
 		MFREE(osh, bcmsdh, sizeof(bcmsdh_info_t));
 	}
 

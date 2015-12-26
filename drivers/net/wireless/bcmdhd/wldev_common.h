@@ -73,6 +73,7 @@ extern int dhd_net_wifi_platform_set_power(struct net_device *dev, bool on,
 extern void dhd_get_customized_country_code(struct net_device *dev, char *country_iso_code,
 	wl_country_t *cspec);
 extern void dhd_bus_country_set(struct net_device *dev, wl_country_t *cspec, bool notify);
+extern bool dhd_force_country_change(struct net_device *dev);
 extern void dhd_bus_band_set(struct net_device *dev, uint band);
 extern int wldev_set_country(struct net_device *dev, char *country_code, bool notify,
 	bool user_enforced);
@@ -83,7 +84,7 @@ extern int net_os_wake_lock_timeout_enable(struct net_device *dev, int val);
 extern int net_os_set_dtim_skip(struct net_device *dev, int val);
 extern int net_os_set_suspend_disable(struct net_device *dev, int val);
 extern int net_os_set_suspend(struct net_device *dev, int val, int force);
-extern int wl_iw_parse_ssid_list_tlv(char** list_str, wlc_ssid_t* ssid,
+extern int wl_iw_parse_ssid_list_tlv(char** list_str, wlc_ssid_ext_t* ssid,
 	int max, int *bytes_left);
 
 /* Get the link speed from dongle, speed is in kpbs */

@@ -54,6 +54,7 @@ int dhd_dongle_ramsize;
 static int dhdpcie_checkdied(dhd_bus_t *bus, char *data, uint size);
 static int dhdpcie_bus_readconsole(dhd_bus_t *bus);
 #endif
+static void dhdpcie_bus_report_pcie_linkdown(dhd_bus_t *bus);
 static int dhdpcie_bus_membytes(dhd_bus_t *bus, bool write, ulong address, uint8 *data, uint size);
 static int dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid,
 	const char *name, void *params,
@@ -132,6 +133,7 @@ enum {
 	IOV_DB1_FOR_MB,
 	IOV_FLOW_PRIO_MAP
 };
+
 
 
 const bcm_iovar_t dhdpcie_iovars[] = {
@@ -1171,9 +1173,13 @@ int dhd_bus_rxctl(struct dhd_bus *bus, uchar *msg, uint msglen)
 	else
 		bus->dhd->rx_ctlerrs++;
 
-	if (bus->dhd->rxcnt_timeout >= MAX_CNTL_TX_TIMEOUT)
+	if (bus->dhd->rxcnt_timeout >= MAX_CNTL_TX_TIMEOUT) {
+#ifdef MSM_PCIE_LINKDOWN_RECOVERY
+		bus->islinkdown = TRUE;
+		DHD_ERROR(("PCIe link down\n"));
+#endif /* SUPPORT_LINKDOWN_RECOVERY */
 		return -ETIMEDOUT;
-
+	}
 	if (bus->dhd->dongle_trap_occured)
 		return -EREMOTEIO;
 
@@ -1435,6 +1441,18 @@ done:
 	return bcmerror;
 }
 #endif /* DHD_DEBUG */
+static void
+dhdpcie_bus_report_pcie_linkdown(dhd_bus_t *bus)
+{
+	if (bus == NULL)
+		return;
+#ifdef MSM_PCIE_LINKDOWN_RECOVERY
+	bus->islinkdown = TRUE;
+	DHD_ERROR(("PCIe link down, Device ID and Vendor ID are 0x%x\n",
+			dhdpcie_bus_cfg_read_dword(bus, PCI_VENDOR_ID, 4)));
+	dhd_os_send_hang_message(bus->dhd);
+#endif /* SUPPORT_LINKDOWN_RECOVERY */
+}
 
 
 /**
@@ -1518,11 +1536,14 @@ dhd_bus_schedule_queue(struct dhd_bus  *bus, uint16 flow_id, bool txs)
 
 		queue = &flow_ring_node->queue; /* queue associated with flow ring */
 
-		DHD_QUEUE_LOCK(queue->lock, flags);
+		DHD_FLOWRING_LOCK(flow_ring_node->lock, flags);
+
+		if (flow_ring_node->status != FLOW_RING_STATUS_OPEN) {
+				DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
+				return BCME_NOTREADY;
+		}
 
 		while ((txp = dhd_flow_queue_dequeue(bus->dhd, queue)) != NULL) {
-			PKTORPHAN(txp);
-
 #ifdef DHDTCPACK_SUPPRESS
 		dhd_tcpack_check_xmit(bus->dhd, txp);
 #endif /* DHDTCPACK_SUPPRESS */
@@ -1534,7 +1555,7 @@ dhd_bus_schedule_queue(struct dhd_bus  *bus, uint16 flow_id, bool txs)
 				dhd_prot_txdata_write_flush(bus->dhd, flow_id, FALSE);
 				/* reinsert at head */
 				dhd_flow_queue_reinsert(bus->dhd, queue, txp);
-				DHD_QUEUE_UNLOCK(queue->lock, flags);
+				DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
 
 				/* If we are able to requeue back, return success */
 				return BCME_OK;
@@ -1543,7 +1564,7 @@ dhd_bus_schedule_queue(struct dhd_bus  *bus, uint16 flow_id, bool txs)
 
 		dhd_prot_txdata_write_flush(bus->dhd, flow_id, FALSE);
 
-		DHD_QUEUE_UNLOCK(queue->lock, flags);
+		DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
 	}
 
 	return ret;
@@ -1585,12 +1606,12 @@ dhd_bus_txdata(struct dhd_bus *bus, void *txp, uint8 ifidx)
 
 		queue = &flow_ring_node->queue; /* queue associated with flow ring */
 
-		DHD_QUEUE_LOCK(queue->lock, flags);
+		DHD_FLOWRING_LOCK(flow_ring_node->lock, flags);
 
 		if ((ret = dhd_flow_queue_enqueue(bus->dhd, queue, txp)) != BCME_OK)
 			txp_pend = txp;
 
-		DHD_QUEUE_UNLOCK(queue->lock, flags);
+		DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
 
 		if (flow_ring_node->status) {
 			DHD_INFO(("%s: Enq pkt flowid %d, status %d active %d\n",
@@ -1606,15 +1627,15 @@ dhd_bus_txdata(struct dhd_bus *bus, void *txp, uint8 ifidx)
 
 		/* If we have anything pending, try to push into q */
 		if (txp_pend) {
-			DHD_QUEUE_LOCK(queue->lock, flags);
+			DHD_FLOWRING_LOCK(flow_ring_node->lock, flags);
 
 			if ((ret = dhd_flow_queue_enqueue(bus->dhd, queue, txp_pend)) != BCME_OK) {
-				DHD_QUEUE_UNLOCK(queue->lock, flags);
+				DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
 				txp = txp_pend;
 				goto toss;
 			}
 
-			DHD_QUEUE_UNLOCK(queue->lock, flags);
+			DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
 		}
 
 		return ret;
@@ -2296,6 +2317,152 @@ done:
 	return BCME_OK;
 }
 #endif /* BCM_BUZZZ */
+int
+dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
+{
+	dhd_bus_t *bus = dhdp->bus;
+	int ret = 0;
+#ifdef CONFIG_ARCH_MSM
+	int retry = POWERUP_MAX_RETRY;
+#endif /* CONFIG_ARCH_MSM */
+
+	if (dhd_download_fw_on_driverload) {
+		ret = dhd_bus_start(dhdp);
+	} else {
+		if (flag == TRUE) {
+			 /* Turn off WLAN */
+			DHD_ERROR(("%s: == Power OFF ==\n", __FUNCTION__));
+			bus->dhd->up = FALSE;
+			if (bus->dhd->busstate != DHD_BUS_DOWN) {
+				if (bus->intr) {
+					dhdpcie_bus_intr_disable(bus);
+					dhdpcie_free_irq(bus);
+				}
+
+				dhd_os_wd_timer(dhdp, 0);
+				dhd_bus_stop(bus, TRUE);
+				dhd_prot_clear(dhdp);
+				dhd_clear(dhdp);
+				dhd_bus_release_dongle(bus);
+				dhdpcie_bus_free_resource(bus);
+				ret = dhdpcie_bus_disable_device(bus);
+				if (ret) {
+					DHD_ERROR(("%s: dhdpcie_bus_disable_device: %d\n",
+						__FUNCTION__, ret));
+					goto done;
+				}
+
+#ifdef CONFIG_ARCH_MSM
+				ret = dhdpcie_bus_clock_stop(bus);
+				if (ret) {
+					DHD_ERROR(("%s: host clock stop failed: %d\n",
+						__FUNCTION__, ret));
+					goto done;
+				}
+#endif /* CONFIG_ARCH_MSM */
+				bus->dhd->busstate = DHD_BUS_DOWN;
+			} else {
+				if (bus->intr) {
+					dhdpcie_bus_intr_disable(bus);
+					dhdpcie_free_irq(bus);
+				}
+
+				dhd_prot_clear(dhdp);
+				dhd_clear(dhdp);
+				dhd_bus_release_dongle(bus);
+				dhdpcie_bus_free_resource(bus);
+				ret = dhdpcie_bus_disable_device(bus);
+				if (ret) {
+					DHD_ERROR(("%s: dhdpcie_bus_disable_device: %d\n",
+						__FUNCTION__, ret));
+					goto done;
+				}
+#ifdef CONFIG_ARCH_MSM
+				ret = dhdpcie_bus_clock_stop(bus);
+				if (ret) {
+					DHD_ERROR(("%s: host clock stop failed: %d\n",
+						__FUNCTION__, ret));
+					goto done;
+				}
+#endif  /* CONFIG_ARCH_MSM */
+			}
+
+			bus->dhd->dongle_reset = TRUE;
+			DHD_ERROR(("%s:  WLAN OFF Done\n", __FUNCTION__));
+
+		} else {
+			if (bus->dhd->busstate == DHD_BUS_DOWN) {
+				/* Turn on WLAN */
+				DHD_ERROR(("%s: == Power ON ==\n", __FUNCTION__));
+#ifdef CONFIG_ARCH_MSM
+				while (retry--) {
+					ret = dhdpcie_bus_clock_start(bus);
+					if (!ret) {
+						DHD_ERROR(("%s: dhdpcie_bus_clock_start OK\n",
+							__FUNCTION__));
+						break;
+					}
+					else
+						OSL_SLEEP(10);
+				}
+
+				if (ret && !retry) {
+					DHD_ERROR(("%s: host pcie clock enable failed: %d\n",
+						__FUNCTION__, ret));
+					goto done;
+				}
+#endif /* CONFIG_ARCH_MSM */
+				ret = dhdpcie_bus_enable_device(bus);
+				if (ret) {
+					DHD_ERROR(("%s: host configuration restore failed: %d\n",
+						__FUNCTION__, ret));
+					goto done;
+				}
+
+				ret = dhdpcie_bus_alloc_resource(bus);
+				if (ret) {
+					DHD_ERROR(("%s: dhdpcie_bus_resource_alloc failed: %d\n",
+						__FUNCTION__, ret));
+					goto done;
+				}
+
+				ret = dhdpcie_bus_dongle_attach(bus);
+				if (ret) {
+					DHD_ERROR(("%s: dhdpcie_bus_dongle_attach failed: %d\n",
+						__FUNCTION__, ret));
+					goto done;
+				}
+
+				ret = dhd_bus_request_irq(bus);
+				if (ret) {
+					DHD_ERROR(("%s: dhd_bus_request_irq failed: %d\n",
+						__FUNCTION__, ret));
+					goto done;
+				}
+
+				bus->dhd->dongle_reset = FALSE;
+
+				ret = dhd_bus_start(dhdp);
+				if (ret) {
+					DHD_ERROR(("%s: dhd_bus_start: %d\n",
+						__FUNCTION__, ret));
+					goto done;
+				}
+
+				bus->dhd->up = TRUE;
+				DHD_ERROR(("%s: WLAN Power On Done\n", __FUNCTION__));
+			} else {
+				DHD_ERROR(("%s: what should we do here\n", __FUNCTION__));
+				goto done;
+			}
+		}
+	}
+done:
+	if (ret)
+		bus->dhd->busstate = DHD_BUS_DOWN;
+
+	return ret;
+}
 
 #define PCIE_GEN2(sih) ((BUSTYPE((sih)->bustype) == PCI_BUS) &&	\
 	((sih)->buscoretype == PCIE2_CORE_ID))
@@ -2564,7 +2731,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 			int_val);
 		int_val = si_corereg(bus->sih, bus->sih->buscoreidx,
 			OFFSETOF(sbpcieregs_t, configdata), 0, 0);
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_GVAL(IOV_BAR0_SECWIN_REG):
@@ -2580,7 +2747,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 		bar0 = (uchar *)bus->regs;
 		offset = (uint32 *)(bar0 + 0x4000 + (int_val & 0xFFF));
 		int_val = *offset;
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		dhdpcie_bus_cfg_write_dword(bus, PCIE2_BAR0_CORE2_WIN, sizeof(uint32), cur_base);
 	}
 		break;
@@ -2665,7 +2832,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 		break;
 	case IOV_GVAL(IOV_PCIECOREREG):
 		int_val = si_corereg(bus->sih, bus->sih->buscoreidx, int_val, 0, 0);
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_SVAL(IOV_PCIECFGREG):
@@ -2674,7 +2841,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_GVAL(IOV_PCIECFGREG):
 		int_val = OSL_PCI_READ_CONFIG(bus->osh, int_val, 4);
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_SVAL(IOV_PCIE_LPBK):
@@ -2687,7 +2854,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_GVAL(IOV_PCIE_SUSPEND):
 		int_val = (bus->dhd->busstate == DHD_BUS_SUSPEND) ? 1 : 0;
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_SVAL(IOV_PCIE_SUSPEND):
@@ -2696,7 +2863,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_GVAL(IOV_MEMSIZE):
 		int_val = (int32)bus->ramsize;
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 	case IOV_SVAL(IOV_MEMBYTES):
 	case IOV_GVAL(IOV_MEMBYTES):
@@ -2796,12 +2963,12 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_GVAL(IOV_RAMSIZE):
 		int_val = (int32)bus->ramsize;
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_GVAL(IOV_RAMSTART):
 		int_val = (int32)bus->dongle_ram_base;
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_GVAL(IOV_CC_NVMSHADOW):
@@ -2824,7 +2991,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_GVAL(IOV_DONGLEISOLATION):
 		int_val = bus->dhd->dongle_isolation;
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_SVAL(IOV_DONGLEISOLATION):
@@ -2833,7 +3000,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_GVAL(IOV_LTRSLEEPON_UNLOOAD):
 		int_val = bus->ltrsleep_on_unload;
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_SVAL(IOV_LTRSLEEPON_UNLOOAD):
@@ -2853,7 +3020,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 		d2h_support = DMA_INDX_ENAB(bus->dhd->dma_d2h_ring_upd_support) ? 1 : 0;
 		h2d_support = DMA_INDX_ENAB(bus->dhd->dma_h2d_ring_upd_support) ? 1 : 0;
 		int_val = d2h_support | (h2d_support << 1);
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 	}
 	case IOV_SVAL(IOV_DMA_RINGINDICES):
@@ -2875,7 +3042,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_GVAL(IOV_RX_METADATALEN):
 		int_val = dhd_prot_metadatalen_get(bus->dhd, TRUE);
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 		case IOV_SVAL(IOV_RX_METADATALEN):
@@ -2892,7 +3059,7 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_GVAL(IOV_TXP_THRESHOLD):
 		int_val = dhd_prot_txp_threshold(bus->dhd, FALSE, int_val);
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_SVAL(IOV_DB1_FOR_MB):
@@ -2907,12 +3074,12 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 			int_val = 1;
 		else
 			int_val = 0;
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_GVAL(IOV_TX_METADATALEN):
 		int_val = dhd_prot_metadatalen_get(bus->dhd, FALSE);
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_SVAL(IOV_TX_METADATALEN):
@@ -2925,12 +3092,12 @@ dhdpcie_bus_doiovar(dhd_bus_t *bus, const bcm_iovar_t *vi, uint32 actionid, cons
 
 	case IOV_GVAL(IOV_FLOW_PRIO_MAP):
 		int_val = bus->dhd->flow_prio_map_type;
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	case IOV_SVAL(IOV_FLOW_PRIO_MAP):
 		int_val = (int32)dhd_update_flow_prio_map(bus->dhd, (uint8)int_val);
-		bcopy(&int_val, arg, val_size);
+		bcopy(&int_val, arg, sizeof(int_val));
 		break;
 
 	default:
@@ -2994,36 +3161,65 @@ dhdpcie_bus_suspend(struct  dhd_bus *bus, bool state)
 	if (bus->dhd->dongle_reset)
 		return -EIO;
 
-	if (state == (bus->dhd->busstate == DHD_BUS_SUSPEND)) /* Set to same state */
-		return BCME_OK;
 
 	if (state) {
 #ifdef EXYNOS5433_PCIE_WAR
 		exynos_pcie_set_l1_exit();
 #endif /* EXYNOS5433_PCIE_WAR */
 		bus->wait_for_d3_ack = 0;
+		bus->suspended = TRUE;
+		bus->dhd->busstate = DHD_BUS_SUSPEND;
 		DHD_OS_WAKE_LOCK_WAIVE(bus->dhd);
+		dhd_os_set_ioctl_resp_timeout(DEFAULT_IOCTL_RESP_TIMEOUT);
 		dhdpcie_send_mb_data(bus, H2D_HOST_D3_INFORM);
 		timeleft = dhd_os_d3ack_wait(bus->dhd, &bus->wait_for_d3_ack, &pending);
+		dhd_os_set_ioctl_resp_timeout(IOCTL_RESP_TIMEOUT);
 		DHD_OS_WAKE_LOCK_RESTORE(bus->dhd);
-		if (bus->wait_for_d3_ack) {
+		if (bus->wait_for_d3_ack == 1) {
 			/* Got D3 Ack. Suspend the bus */
-			rc = dhdpcie_pci_suspend_resume(bus->dev, state);
-			bus->dhd->busstate = DHD_BUS_SUSPEND;
+			if (dhd_os_check_wakelock_all(bus->dhd)) {
+				DHD_ERROR(("Suspend failed because of wakelock\n"));
+				bus->dev->current_state = PCI_D3hot;
+				pci_set_master(bus->dev);
+				rc = pci_set_power_state(bus->dev, PCI_D0);
+				if (rc) {
+					DHD_ERROR(("%s: pci_set_power_state failed:"
+						" current_state[%d], ret[%d]\n",
+						__FUNCTION__, bus->dev->current_state, rc));
+				}
+				bus->suspended = FALSE;
+				bus->dhd->busstate = DHD_BUS_DATA;
+				rc = BCME_ERROR;
+			} else {
+				dhdpcie_bus_intr_disable(bus);
+				rc = dhdpcie_pci_suspend_resume(bus->dev, state);
+			}
 		} else if (timeleft == 0) {
 			DHD_ERROR(("%s: resumed on timeout\n", __FUNCTION__));
-#ifdef EXYNOS5433_PCIE_WAR
-			exynos_pcie_clear_l1_exit();
-#endif /* EXYNOS5433_PCIE_WAR */
-			return -ETIMEDOUT;
+			bus->suspended = FALSE;
+			bus->dhd->busstate = DHD_BUS_DATA;
+			rc = -ETIMEDOUT;
+		} else if (bus->wait_for_d3_ack == DHD_INVALID) {
+			DHD_ERROR(("PCIe link down during suspend"));
+			bus->suspended = FALSE;
+			bus->dhd->busstate = DHD_BUS_DOWN;
+			rc = -ETIMEDOUT;
+			dhdpcie_bus_report_pcie_linkdown(bus);
 		}
 		bus->wait_for_d3_ack = 1;
-	}
-	else {
+	} else {
 		/* Resume */
 		rc = dhdpcie_pci_suspend_resume(bus->dev, state);
-		bus->dhd->busstate = DHD_BUS_DATA;
-
+		bus->suspended = FALSE;
+		if (dhdpcie_bus_cfg_read_dword(bus, PCI_VENDOR_ID, 4) == PCIE_LINK_DOWN) {
+			DHD_ERROR(("PCIe link down during resume"));
+			rc = -ETIMEDOUT;
+			bus->dhd->busstate = DHD_BUS_DOWN;
+			dhdpcie_bus_report_pcie_linkdown(bus);
+		} else {
+			bus->dhd->busstate = DHD_BUS_DATA;
+			dhdpcie_bus_intr_enable(bus);
+		}
 	}
 #ifdef EXYNOS5433_PCIE_WAR
 	exynos_pcie_clear_l1_exit();
@@ -3338,6 +3534,11 @@ void dhd_bus_dump(dhd_pub_t *dhdp, struct bcmstrbuf *strbuf)
 	uint16 flowid;
 	flow_ring_node_t *flow_ring_node;
 
+#ifdef DHD_WAKE_STATUS
+	bcm_bprintf(strbuf, "wake %u rxwake %u readctrlwake %u\n",
+		    bcmpcie_get_total_wake(dhdp->bus), dhdp->bus->rxwake,
+		    dhdp->bus->rcwake);
+#endif
 	dhd_prot_print_info(dhdp, strbuf);
 	for (flowid = 0; flowid < dhdp->num_flow_rings; flowid++) {
 		flow_ring_node = DHD_FLOW_RING(dhdp, flowid);
@@ -3362,11 +3563,9 @@ dhd_update_txflowrings(dhd_pub_t *dhd)
 		next = dll_next_p(item);
 
 		flow_ring_node = dhd_constlist_to_flowring(item);
-		ASSERT(flow_ring_node->active);
 		dhd_prot_update_txflowring(dhd, flow_ring_node->flowid, flow_ring_node->prot_info);
 	}
 }
-
 
 /* Mailbox ringbell Function */
 static void
@@ -3379,12 +3578,14 @@ dhd_bus_gen_devmb_intr(struct dhd_bus *bus)
 	}
 	if (bus->db1_for_mb)  {
 		/* this is a pcie core register, not the config regsiter */
+		/* XXX: makesure we are on PCIE */
 		DHD_INFO(("writing a mail box interrupt to the device, through doorbell 1\n"));
 		si_corereg(bus->sih, bus->sih->buscoreidx, PCIH2D_DB1, ~0, 0x12345678);
 	}
 	else {
 		DHD_INFO(("writing a mail box interrupt to the device, through config space\n"));
 		dhdpcie_bus_cfg_write_dword(bus, PCISBMbx, 4, (1 << 0));
+		/* XXX CRWLPCIEGEN2-182 requires double write */
 		dhdpcie_bus_cfg_write_dword(bus, PCISBMbx, 4, (1 << 0));
 	}
 }
@@ -3454,15 +3655,6 @@ dhd_bus_dpc(struct dhd_bus *bus)
 		return 0;
 	}
 
-	if (bus->dhd->busstate == DHD_BUS_SUSPEND) {
-		resched = TRUE;
-		DHD_ERROR(("%s : pcie is still in suspend state!!!\n", __FUNCTION__));
-		OSL_DELAY(20 * 1000); /* 20ms */
-		return resched;
-	}
-
-	intstatus = bus->intstatus;
-
 	if ((bus->sih->buscorerev == 6) || (bus->sih->buscorerev == 4) ||
 		(bus->sih->buscorerev == 2)) {
 		newstatus =  dhdpcie_bus_cfg_read_dword(bus, PCIIntstatus, 4);
@@ -3525,7 +3717,11 @@ dhdpcie_handle_mb_data(dhd_bus_t *bus)
 		return;
 
 	dhd_bus_cmn_writeshared(bus, &zero, sizeof(uint32), DTOH_MB_DATA, 0);
-
+	if (d2h_mb_data == PCIE_LINK_DOWN) {
+		DHD_ERROR(("%s pcie linkdown, 0x%08x\n", __FUNCTION__, d2h_mb_data));
+		bus->wait_for_d3_ack = DHD_INVALID;
+		dhd_os_d3ack_wake(bus->dhd);
+	}
 	DHD_INFO(("D2H_MB_DATA: 0x%04x\n", d2h_mb_data));
 	if (d2h_mb_data & D2H_DEV_DS_ENTER_REQ)  {
 		/* what should we do */
@@ -3539,7 +3735,7 @@ dhdpcie_handle_mb_data(dhd_bus_t *bus)
 	}
 	if (d2h_mb_data & D2H_DEV_D3_ACK)  {
 		/* what should we do */
-		DHD_INFO_HW4(("%s D2H_MB_DATA: Received D3 ACK\n", __FUNCTION__));
+		DHD_ERROR(("D2H_MB_DATA: D3 ACK\n"));
 		if (!bus->wait_for_d3_ack) {
 			bus->wait_for_d3_ack = 1;
 			dhd_os_d3ack_wake(bus->dhd);
@@ -3570,6 +3766,11 @@ dhdpcie_bus_process_mailbox_intr(dhd_bus_t *bus, uint32 intstatus)
 	else {
 		if (intstatus & (PCIE_MB_TOPCIE_FN0_0 | PCIE_MB_TOPCIE_FN0_1))
 			dhdpcie_handle_mb_data(bus);
+
+		if (bus->dhd->busstate == DHD_BUS_SUSPEND) {
+			return;
+		}
+
 		if (intstatus & PCIE_MB_D2H_MB_MASK) {
 				dhdpci_bus_read_frames(bus);
 		}
@@ -4106,25 +4307,14 @@ dhd_bus_is_txmode_push(dhd_bus_t *bus)
 	return bus->txmode_push;
 }
 
-void dhd_bus_clean_flow_ring(dhd_bus_t *bus, uint16 flowid)
+void dhd_bus_clean_flow_ring(dhd_bus_t *bus, void *node)
 {
 	void *pkt;
 	flow_queue_t *queue;
-	flow_ring_node_t *flow_ring_node;
+	flow_ring_node_t *flow_ring_node = (flow_ring_node_t *)node;
 	unsigned long flags;
 
-	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
-	ASSERT(flow_ring_node->flowid == flowid);
-
 	queue = &flow_ring_node->queue;
-
-	/* Call Flow ring clean up */
-	dhd_prot_clean_flow_ring(bus->dhd, flow_ring_node->prot_info);
-	dhd_flowid_free(bus->dhd, flow_ring_node->flow_info.ifindex,
-	                flow_ring_node->flowid);
-
-	/* clean up BUS level info */
-	DHD_QUEUE_LOCK(queue->lock, flags);
 
 #ifdef DHDTCPACK_SUPPRESS
 	/* Clean tcp_ack_info_tbl in order to prevent access to flushed pkt,
@@ -4132,17 +4322,29 @@ void dhd_bus_clean_flow_ring(dhd_bus_t *bus, uint16 flowid)
 	 */
 	dhd_tcpack_info_tbl_clean(bus->dhd);
 #endif /* DHDTCPACK_SUPPRESS */
+
+	/* clean up BUS level info */
+	DHD_FLOWRING_LOCK(flow_ring_node->lock, flags);
+
 	/* Flush all pending packets in the queue, if any */
 	while ((pkt = dhd_flow_queue_dequeue(bus->dhd, queue)) != NULL) {
 		PKTFREE(bus->dhd->osh, pkt, TRUE);
 	}
 	ASSERT(flow_queue_empty(queue));
 
-	DHD_QUEUE_UNLOCK(queue->lock, flags);
+	flow_ring_node->status = FLOW_RING_STATUS_CLOSED;
 
 	flow_ring_node->active = FALSE;
 
 	dll_delete(&flow_ring_node->list);
+
+	DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
+
+	/* Call Flow ring clean up */
+	dhd_prot_clean_flow_ring(bus->dhd, flow_ring_node->prot_info);
+	dhd_flowid_free(bus->dhd, flow_ring_node->flow_info.ifindex,
+					flow_ring_node->flowid);
+
 }
 
 /*
@@ -4158,11 +4360,8 @@ dhd_bus_flow_ring_create_request(dhd_bus_t *bus, void *arg)
 	DHD_INFO(("%s :Flow create\n", __FUNCTION__));
 
 	/* Send Msg to device about flow ring creation */
-	dhd_prot_flow_ring_create(bus->dhd, flow_ring_node);
-
-	flow_ring_node->status = FLOW_RING_STATUS_PENDING;
-
-	dll_prepend(&bus->const_flowring, &flow_ring_node->list);
+	if (dhd_prot_flow_ring_create(bus->dhd, flow_ring_node) != BCME_OK)
+		return BCME_NOMEM;
 
 	return BCME_OK;
 }
@@ -4171,6 +4370,7 @@ void
 dhd_bus_flow_ring_create_response(dhd_bus_t *bus, uint16 flowid, int32 status)
 {
 	flow_ring_node_t *flow_ring_node;
+	unsigned long flags;
 
 	DHD_INFO(("%s :Flow Response %d \n", __FUNCTION__, flowid));
 
@@ -4181,11 +4381,13 @@ dhd_bus_flow_ring_create_response(dhd_bus_t *bus, uint16 flowid, int32 status)
 		DHD_ERROR(("%s Flow create Response failure error status = %d \n",
 		     __FUNCTION__, status));
 		/* Call Flow clean up */
-		dhd_bus_clean_flow_ring(bus, flowid);
+		dhd_bus_clean_flow_ring(bus, flow_ring_node);
 		return;
 	}
 
+	DHD_FLOWRING_LOCK(flow_ring_node->lock, flags);
 	flow_ring_node->status = FLOW_RING_STATUS_OPEN;
+	DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
 
 	dhd_bus_schedule_queue(bus, flowid, FALSE);
 
@@ -4204,14 +4406,15 @@ dhd_bus_flow_ring_delete_request(dhd_bus_t *bus, void *arg)
 
 	flow_ring_node = (flow_ring_node_t *)arg;
 
+	DHD_FLOWRING_LOCK(flow_ring_node->lock, flags);
 	if (flow_ring_node->status & FLOW_RING_STATUS_DELETE_PENDING) {
+		DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
 		DHD_ERROR(("%s :Delete Pending\n", __FUNCTION__));
 		return BCME_ERROR;
 	}
+	flow_ring_node->status = FLOW_RING_STATUS_DELETE_PENDING;
 
 	queue = &flow_ring_node->queue; /* queue associated with flow ring */
-
-	DHD_QUEUE_LOCK(queue->lock, flags);
 
 #ifdef DHDTCPACK_SUPPRESS
 	/* Clean tcp_ack_info_tbl in order to prevent access to flushed pkt,
@@ -4225,12 +4428,11 @@ dhd_bus_flow_ring_delete_request(dhd_bus_t *bus, void *arg)
 	}
 	ASSERT(flow_queue_empty(queue));
 
-	DHD_QUEUE_UNLOCK(queue->lock, flags);
+	DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
 
 	/* Send Msg to device about flow ring deletion */
 	dhd_prot_flow_ring_delete(bus->dhd, flow_ring_node);
 
-	flow_ring_node->status = FLOW_RING_STATUS_DELETE_PENDING;
 	return BCME_OK;
 }
 
@@ -4239,7 +4441,7 @@ dhd_bus_flow_ring_delete_response(dhd_bus_t *bus, uint16 flowid, uint32 status)
 {
 	flow_ring_node_t *flow_ring_node;
 
-	DHD_INFO(("%s :Flow Delete Response %d \n", __FUNCTION__, flowid));
+	DHD_ERROR(("%s :Flow Delete Response %d \n", __FUNCTION__, flowid));
 
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
 	ASSERT(flow_ring_node->flowid == flowid);
@@ -4250,10 +4452,8 @@ dhd_bus_flow_ring_delete_response(dhd_bus_t *bus, uint16 flowid, uint32 status)
 		return;
 	}
 	/* Call Flow clean up */
-	dhd_bus_clean_flow_ring(bus, flowid);
+	dhd_bus_clean_flow_ring(bus, flow_ring_node);
 
-	flow_ring_node->status = FLOW_RING_STATUS_OPEN;
-	flow_ring_node->active = FALSE;
 	return;
 
 }
@@ -4270,7 +4470,7 @@ int dhd_bus_flow_ring_flush_request(dhd_bus_t *bus, void *arg)
 	flow_ring_node = (flow_ring_node_t *)arg;
 	queue = &flow_ring_node->queue; /* queue associated with flow ring */
 
-	DHD_QUEUE_LOCK(queue->lock, flags);
+	DHD_FLOWRING_LOCK(flow_ring_node->lock, flags);
 
 #ifdef DHDTCPACK_SUPPRESS
 	/* Clean tcp_ack_info_tbl in order to prevent access to flushed pkt,
@@ -4284,12 +4484,15 @@ int dhd_bus_flow_ring_flush_request(dhd_bus_t *bus, void *arg)
 	}
 	ASSERT(flow_queue_empty(queue));
 
-	DHD_QUEUE_UNLOCK(queue->lock, flags);
+	DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
 
 	/* Send Msg to device about flow ring flush */
 	dhd_prot_flow_ring_flush(bus->dhd, flow_ring_node);
 
+	DHD_FLOWRING_LOCK(flow_ring_node->lock, flags);
 	flow_ring_node->status = FLOW_RING_STATUS_FLUSH_PENDING;
+	DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
+
 	return BCME_OK;
 }
 
@@ -4297,6 +4500,7 @@ void
 dhd_bus_flow_ring_flush_response(dhd_bus_t *bus, uint16 flowid, uint32 status)
 {
 	flow_ring_node_t *flow_ring_node;
+	unsigned long flags;
 
 	if (status != BCME_OK) {
 		DHD_ERROR(("%s Flow flush Response failure error status = %d \n",
@@ -4307,7 +4511,10 @@ dhd_bus_flow_ring_flush_response(dhd_bus_t *bus, uint16 flowid, uint32 status)
 	flow_ring_node = DHD_FLOW_RING(bus->dhd, flowid);
 	ASSERT(flow_ring_node->flowid == flowid);
 
+	DHD_FLOWRING_LOCK(flow_ring_node->lock, flags);
 	flow_ring_node->status = FLOW_RING_STATUS_OPEN;
+	DHD_FLOWRING_UNLOCK(flow_ring_node->lock, flags);
+
 	return;
 }
 
@@ -4355,6 +4562,12 @@ void
 dhdpcie_bus_free_resource(struct dhd_bus *bus)
 {
 	dhdpcie_free_resource(bus);
+}
+
+int
+dhd_bus_request_irq(struct dhd_bus *bus)
+{
+	return dhdpcie_bus_request_irq(bus);
 }
 
 bool

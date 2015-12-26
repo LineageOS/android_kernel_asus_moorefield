@@ -24,10 +24,6 @@
 #include <bcmwifi_rates.h>
 #include <devctrl_if/wlioctl_defs.h>
 
-#if 0 && (NDISVER >= 0x0600)
-#include <proto/bcmipv6.h>
-#endif
-
 #ifndef LINUX_POSTMOGRIFY_REMOVAL
 #include <bcm_mpool_pub.h>
 #include <bcmcdc.h>
@@ -75,11 +71,7 @@ typedef struct {
 	bool		assoc_approved;		/* (re)association approved */
 	uint16		reject_reason;		/* reason code for rejecting association */
 	struct		ether_addr   da;
-#if 0 && (NDISVER >= 0x0620)
-	LARGE_INTEGER	sys_time;		/* current system time */
-#else
 	int64		sys_time;		/* current system time */
-#endif
 } assoc_decision_t;
 
 #define ACTION_FRAME_SIZE 1800
@@ -286,6 +278,15 @@ typedef struct wl_bss_info {
 	/* variable length Information Elements */
 } wl_bss_info_t;
 
+#define	WL_GSCAN_BSS_INFO_VERSION	1	/* current version of wl_gscan_bss_info struct */
+#define WL_GSCAN_INFO_FIXED_FIELD_SIZE   (sizeof(wl_gscan_bss_info_t) - sizeof(wl_bss_info_t))
+
+typedef struct wl_gscan_bss_info {
+	uint32      timestamp[2];
+	wl_bss_info_t info;
+	/* variable length Information Elements */
+} wl_gscan_bss_info_t;
+
 #ifndef LINUX_POSTMOGRIFY_REMOVAL
 
 typedef struct wl_bsscfg {
@@ -373,6 +374,12 @@ typedef struct wlc_ssid {
 	uint32		SSID_len;
 	uchar		SSID[DOT11_MAX_SSID_LEN];
 } wlc_ssid_t;
+
+typedef struct wlc_ssid_ext {
+	bool       hidden;
+	uint32		SSID_len;
+	uchar		SSID[DOT11_MAX_SSID_LEN];
+} wlc_ssid_ext_t;
 
 #ifndef LINUX_POSTMOGRIFY_REMOVAL
 
@@ -503,6 +510,14 @@ typedef struct wl_escan_result {
 } wl_escan_result_t;
 
 #define WL_ESCAN_RESULTS_FIXED_SIZE (sizeof(wl_escan_result_t) - sizeof(wl_bss_info_t))
+
+typedef struct wl_gscan_result {
+	uint32 buflen;
+	uint32 version;
+	wl_gscan_bss_info_t bss_info[1];
+} wl_gscan_result_t;
+
+#define WL_GSCAN_RESULTS_FIXED_SIZE (sizeof(wl_gscan_result_t) - sizeof(wl_gscan_bss_info_t))
 
 /* incremental scan results struct */
 typedef struct wl_iscan_results {
@@ -782,30 +797,6 @@ typedef struct wl_rm_rep {
 	wl_rm_rep_elt_t	rep[1];	/* variable length block of reports */
 } wl_rm_rep_t;
 #define WL_RM_REP_FIXED_LEN	8
-
-#ifdef BCMCCX
-
-#define LEAP_USER_MAX		32
-#define LEAP_DOMAIN_MAX		32
-#define LEAP_PASSWORD_MAX	32
-
-typedef struct wl_leap_info {
-	wlc_ssid_t ssid;
-	uint8 user_len;
-	uchar user[LEAP_USER_MAX];
-	uint8 password_len;
-	uchar password[LEAP_PASSWORD_MAX];
-	uint8 domain_len;
-	uchar domain[LEAP_DOMAIN_MAX];
-} wl_leap_info_t;
-
-typedef struct wl_leap_list {
-	uint32 buflen;
-	uint32 version;
-	uint32 count;
-	wl_leap_info_t leap_info[1];
-} wl_leap_list_t;
-#endif	/* BCMCCX */
 
 typedef enum sup_auth_status {
 	/* Basic supplicant authentication states */
@@ -2559,6 +2550,10 @@ enum {
 #define PFN_PARTIAL_SCAN_BIT		0
 #define PFN_PARTIAL_SCAN_MASK		1
 
+#define PFN_SWC_RSSI_WINDOW_MAX   8
+#define PFN_SWC_MAX_NUM_APS       16
+#define PFN_HOTLIST_MAX_NUM_APS   64
+
 /* PFN network info structure */
 typedef struct wl_pfn_subnet_info {
 	struct ether_addr BSSID;
@@ -2596,6 +2591,20 @@ typedef struct wl_pfn_scanresults {
 	uint32 count;
 	wl_pfn_net_info_t netinfo[1];
 } wl_pfn_scanresults_t;
+
+typedef struct wl_pfn_significant_net {
+	uint16 flags;
+	uint16 channel;
+	struct ether_addr BSSID;
+	int8 rssi[PFN_SWC_RSSI_WINDOW_MAX];
+} wl_pfn_significant_net_t;
+
+typedef struct wl_pfn_swc_results {
+	uint32 version;
+	uint32 pkt_count;
+	uint32 total_count;
+	wl_pfn_significant_net_t list[1];
+} wl_pfn_swc_results_t;
 
 /* used to report exactly one scan result */
 /* plus reports detailed scan info in bss_info */
@@ -2635,6 +2644,13 @@ typedef struct wl_pfn_bssid {
 	/* Bit4: suppress_lost, Bit3: suppress_found */
 	uint16             flags;
 } wl_pfn_bssid_t;
+
+typedef struct wl_pfn_significant_bssid {
+	struct ether_addr	macaddr;
+	int8    rssi_low_threshold;
+	int8    rssi_high_threshold;
+} wl_pfn_significant_bssid_t;
+
 #define WL_PFN_SUPPRESSFOUND_MASK	0x08
 #define WL_PFN_SUPPRESSLOST_MASK	0x10
 #define WL_PFN_RSSI_MASK		0xff00
@@ -2646,6 +2662,40 @@ typedef struct wl_pfn_cfg {
 	uint16	channel_list[WL_NUMCHANNELS];
 	uint32	flags;
 } wl_pfn_cfg_t;
+
+#define CH_BUCKET_REPORT_REGULAR            0
+#define CH_BUCKET_REPORT_FULL_RESULT        2
+
+typedef struct wl_pfn_gscan_channel_bucket {
+	uint16 bucket_end_index;
+	uint8 bucket_freq_multiple;
+	uint8 report_flag;
+} wl_pfn_gscan_channel_bucket_t;
+
+#define GSCAN_SEND_ALL_RESULTS_MASK    (1 << 0)
+#define GSCAN_CFG_FLAGS_ONLY_MASK      (1 << 7)
+
+typedef struct wl_pfn_gscan_cfg {
+	/* BIT0 1 = send probes/beacons to HOST
+	 * BIT1 Reserved
+	 * BIT2 Reserved
+	 * Add any future flags here
+	 * BIT7 1 = no other useful cfg sent
+	 */
+	uint8 flags;
+	/* Buffer filled threshold in % to generate an event */
+	uint8   buffer_threshold;
+	/* No. of BSSIDs with "change" to generate an evt
+	 * change - crosses rssi threshold/lost
+	 */
+	uint8   swc_nbssid_threshold;
+	/* Max=8 (for now) Size of rssi cache buffer */
+	uint8  swc_rssi_window_size;
+	uint16  count_of_channel_buckets;
+	uint16  lost_ap_window;
+	wl_pfn_gscan_channel_bucket_t channel_bucket[1];
+} wl_pfn_gscan_cfg_t;
+
 #define WL_PFN_REPORT_ALLNET    0
 #define WL_PFN_REPORT_SSIDNET   1
 #define WL_PFN_REPORT_BSSIDNET  2
@@ -2668,6 +2718,16 @@ typedef struct wl_pfn_list {
 	uint32		count;
 	wl_pfn_t	pfn[1];
 } wl_pfn_list_t;
+
+#define WL_PFN_MAC_OUI_ONLY_MASK      1
+#define WL_PFN_SET_MAC_UNASSOC_MASK   2
+/* To configure pfn_macaddr */
+typedef struct wl_pfn_macaddr_cfg {
+	uint8 version;
+	uint8 flags;
+	struct ether_addr macaddr;
+} wl_pfn_macaddr_cfg_t;
+#define WL_PFN_MACADDR_CFG_VER 1
 
 typedef BWL_PRE_PACKED_STRUCT struct pfn_olmsg_params_t {
 	wlc_ssid_t ssid;
@@ -2963,7 +3023,6 @@ typedef struct wl_pkt_filter_pattern {
 		uint32	offset;		/* Offset within received packet to start pattern matching.
 				 * Offset '0' is the first byte of the ethernet header.
 				 */
-		// wl_pkt_decrypter_t*	decrypt_ctx;	/* Decrypt context */
 	};
 	uint32	size_bytes;	/* Size of the pattern.  Bitmask must be the same size. */
 	uint8   mask_and_pattern[1]; /* Variable length mask and pattern data.  mask starts
@@ -3663,23 +3722,6 @@ BWL_PRE_PACKED_STRUCT struct hostip_id {
 	uint8 id;
 } BWL_POST_PACKED_STRUCT;
 
-#if 0 && (NDISVER >= 0x0600)
-/* Return values */
-#define ND_REPLY_PEER		0x1	/* Reply was sent to service NS request from peer */
-#define ND_REQ_SINK			0x2	/* Input packet should be discarded */
-#define ND_FORCE_FORWARD	0X3	/* For the dongle to forward req to HOST */
-
-
-/* Neighbor Solicitation Response Offload IOVAR param */
-typedef BWL_PRE_PACKED_STRUCT struct nd_param {
-	struct ipv6_addr	host_ip[2];
-	struct ipv6_addr	solicit_ip;
-	struct ipv6_addr	remote_ip;
-	uint8	host_mac[ETHER_ADDR_LEN];
-	uint32	offload_id;
-} BWL_POST_PACKED_STRUCT nd_param_t;
-#endif 
-
 typedef BWL_PRE_PACKED_STRUCT struct wl_pfn_roam_thresh {
 	uint32 pfn_alert_thresh; /* time in ms */
 	uint32 roam_alert_thresh; /* time in ms */
@@ -3998,21 +4040,6 @@ typedef BWL_PRE_PACKED_STRUCT struct wlc_ipfo_route_tbl {
 
 #define LOGRRC_FIX_LEN	8
 #define IOBUF_ALLOWED_NUM_OF_LOGREC(type, len) ((len - LOGRRC_FIX_LEN)/sizeof(type))
-
-#ifdef BCMWAPI_WAI
-#define IV_LEN 16
-	struct wapi_sta_msg_t
-	{
-		uint16	msg_type;
-		uint16	datalen;
-		uint8	vap_mac[6];
-		uint8	reserve_data1[2];
-		uint8	sta_mac[6];
-		uint8	reserve_data2[2];
-		uint8	gsn[IV_LEN];
-		uint8	wie[256];
-	};
-#endif /* BCMWAPI_WAI */
 
 	/* chanim acs record */
 	typedef struct {

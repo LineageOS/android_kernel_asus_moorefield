@@ -348,14 +348,7 @@
 #define CRYPTO_ALGO_AES_CCM		4
 #define CRYPTO_ALGO_AES_OCB_MSDU	5
 #define CRYPTO_ALGO_AES_OCB_MPDU	6
-#if !defined(BCMCCX) && !defined(BCMEXTCCX)
 #define CRYPTO_ALGO_NALG		7
-#else
-#define CRYPTO_ALGO_CKIP		7
-#define CRYPTO_ALGO_CKIP_MMH	8
-#define CRYPTO_ALGO_WEP_MMH		9
-#define CRYPTO_ALGO_NALG		10
-#endif /* !BCMCCX && !BCMEXTCCX */
 
 #define CRYPTO_ALGO_SMS4		11
 #define CRYPTO_ALGO_PMK			12	/* for 802.1x supp to set PMK before 4-way */
@@ -379,13 +372,8 @@
 
 #define WL_SOFT_KEY	(1 << 0)	/* Indicates this key is using soft encrypt */
 #define WL_PRIMARY_KEY	(1 << 1)	/* Indicates this key is the primary (ie tx) key */
-#if defined(BCMCCX) || defined(BCMEXTCCX)
-#define WL_CKIP_KP	(1 << 4)	/* CMIC */
-#define WL_CKIP_MMH	(1 << 5)	/* CKIP */
-#else
 #define WL_KF_RES_4	(1 << 4)	/* Reserved for backward compat */
 #define WL_KF_RES_5	(1 << 5)	/* Reserved for backward compat */
-#endif /* BCMCCX || BCMEXTCCX */
 #define WL_IBSS_PEER_GROUP_KEY	(1 << 6)	/* Indicates a group key for a IBSS PEER */
 
 /* wireless security bitvec */
@@ -393,45 +381,14 @@
 #define TKIP_ENABLED		0x0002
 #define AES_ENABLED		0x0004
 #define WSEC_SWFLAG		0x0008
-#ifdef BCMCCX
-#define CKIP_KP_ENABLED		0x0010
-#define CKIP_MIC_ENABLED	0x0020
-#endif /* BCMCCX */
 #define SES_OW_ENABLED		0x0040	/* to go into transition mode without setting wep */
-#ifdef BCMWAPI_WPI
-#define SMS4_ENABLED		0x0100
-#endif /* BCMWAPI_WPI */
 
 /* wsec macros for operating on the above definitions */
 #define WSEC_WEP_ENABLED(wsec)	((wsec) & WEP_ENABLED)
 #define WSEC_TKIP_ENABLED(wsec)	((wsec) & TKIP_ENABLED)
 #define WSEC_AES_ENABLED(wsec)	((wsec) & AES_ENABLED)
-
-#ifdef BCMCCX
-#define WSEC_CKIP_KP_ENABLED(wsec)	((wsec) & CKIP_KP_ENABLED)
-#define WSEC_CKIP_MIC_ENABLED(wsec)	((wsec) & CKIP_MIC_ENABLED)
-#define WSEC_CKIP_ENABLED(wsec)	((wsec) & (CKIP_KP_ENABLED|CKIP_MIC_ENABLED))
-
-#ifdef BCMWAPI_WPI
-#define WSEC_ENABLED(wsec) \
-	((wsec) & (WEP_ENABLED | TKIP_ENABLED | AES_ENABLED | CKIP_KP_ENABLED |	\
-	  CKIP_MIC_ENABLED | SMS4_ENABLED))
-#else /* BCMWAPI_WPI */
-#define WSEC_ENABLED(wsec) \
-		((wsec) & \
-		 (WEP_ENABLED | TKIP_ENABLED | AES_ENABLED | CKIP_KP_ENABLED | CKIP_MIC_ENABLED))
-#endif /* BCMWAPI_WPI */
-#else /* defined BCMCCX */
-#ifdef BCMWAPI_WPI
-#define WSEC_ENABLED(wsec)	((wsec) & (WEP_ENABLED | TKIP_ENABLED | AES_ENABLED | SMS4_ENABLED))
-#else /* BCMWAPI_WPI */
 #define WSEC_ENABLED(wsec)	((wsec) & (WEP_ENABLED | TKIP_ENABLED | AES_ENABLED))
-#endif /* BCMWAPI_WPI */
-#endif /* BCMCCX */
 #define WSEC_SES_OW_ENABLED(wsec)	((wsec) & SES_OW_ENABLED)
-#ifdef BCMWAPI_WAI
-#define WSEC_SMS4_ENABLED(wsec)	((wsec) & SMS4_ENABLED)
-#endif /* BCMWAPI_WAI */
 
 #define MFP_CAPABLE		0x0200
 #define MFP_REQUIRED	0x0400
@@ -442,21 +399,11 @@
 #define WPA_AUTH_NONE		0x0001	/* none (IBSS) */
 #define WPA_AUTH_UNSPECIFIED	0x0002	/* over 802.1x */
 #define WPA_AUTH_PSK		0x0004	/* Pre-shared key */
-#if defined(BCMCCX) || defined(BCMEXTCCX)
-#define WPA_AUTH_CCKM		0x0008	/* CCKM */
-#define WPA2_AUTH_CCKM		0x0010	/* CCKM2 */
-#endif	/* BCMCCX || BCMEXTCCX */
 /* #define WPA_AUTH_8021X 0x0020 */	/* 802.1x, reserved */
 #define WPA2_AUTH_UNSPECIFIED	0x0040	/* over 802.1x */
 #define WPA2_AUTH_PSK		0x0080	/* Pre-shared key */
 #define BRCM_AUTH_PSK           0x0100  /* BRCM specific PSK */
 #define BRCM_AUTH_DPT		0x0200	/* DPT PSK without group keys */
-#if defined(BCMWAPI_WAI) || defined(BCMWAPI_WPI)
-#define WPA_AUTH_WAPI           0x0400
-#define WAPI_AUTH_NONE		WPA_AUTH_NONE	/* none (IBSS) */
-#define WAPI_AUTH_UNSPECIFIED	0x0400	/* over AS */
-#define WAPI_AUTH_PSK		0x0800	/* Pre-shared key */
-#endif /* BCMWAPI_WAI || BCMWAPI_WPI */
 #define WPA2_AUTH_MFP           0x1000  /* MFP (11w) in contrast to CCX */
 #define WPA2_AUTH_TPK		0x2000 	/* TDLS Peer Key */
 #define WPA2_AUTH_FT		0x4000 	/* Fast Transition. */
@@ -1782,14 +1729,6 @@
 #define TSPEC_REJECTED		2	/* TSPEC rejected */
 #define TSPEC_UNKNOWN		3	/* TSPEC unknown */
 #define TSPEC_STATUS_MASK	7	/* TSPEC status mask */
-
-#ifdef BCMCCX
-/* "wlan_reason" iovar interface */
-#define WL_WLAN_ASSOC_REASON_NORMAL_NETWORK	0 /* normal WLAN network setup */
-#define WL_WLAN_ASSOC_REASON_ROAM_FROM_CELLULAR_NETWORK	1 /* roam from Cellular network */
-#define WL_WLAN_ASSOC_REASON_ROAM_FROM_LAN	2 /* roam from LAN */
-#define WL_WLAN_ASSOC_REASON_MAX		2 /* largest value allowed */
-#endif /* BCMCCX */
 
 /* Software feature flag defines used by wlfeatureflag */
 #ifdef WLAFTERBURNER

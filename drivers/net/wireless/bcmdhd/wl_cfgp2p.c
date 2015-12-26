@@ -2547,7 +2547,6 @@ wl_cfgp2p_add_p2p_disc_if(struct bcm_cfg80211 *cfg)
 	WL_TRACE(("Enter\n"));
 
 	if (cfg->p2p_wdev) {
-		CFGP2P_ERR(("p2p_wdev defined already.\n"));
 		wl_cfgp2p_del_p2p_disc_if(cfg->p2p_wdev, cfg);
 		CFGP2P_ERR(("p2p_wdev deleted.\n"));
 	}
@@ -2561,7 +2560,7 @@ wl_cfgp2p_add_p2p_disc_if(struct bcm_cfg80211 *cfg)
 	memset(&primary_mac, 0, sizeof(primary_mac));
 	get_primary_mac(cfg, &primary_mac);
 	wl_cfgp2p_generate_bss_mac(&primary_mac,
-		&cfg->p2p->dev_addr, &cfg->p2p->int_addr);
+			&cfg->p2p->dev_addr, &cfg->p2p->int_addr);
 
 	wdev->wiphy = cfg->wdev->wiphy;
 	wdev->iftype = NL80211_IFTYPE_P2P_DEVICE;

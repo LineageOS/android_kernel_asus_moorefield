@@ -161,13 +161,6 @@ do {									\
 
 #define WL_PM_ENABLE_TIMEOUT 10000
 
-#ifdef WLAIBSS
-/* Custom AIBSS beacon parameters */
-#define AIBSS_INITIAL_MIN_BCN_DUR	500
-#define AIBSS_MIN_BCN_DUR		5000
-#define AIBSS_BCN_FLOOD_DUR		5000
-#endif /* WLAIBSS */
-
 /* driver status */
 enum wl_status {
 	WL_STATUS_READY = 0,
@@ -440,57 +433,9 @@ struct parsed_ies {
 	u32 wpa2_ie_len;
 };
 
-#ifdef WL_SDO
-/* Service discovery */
-typedef struct {
-	uint8	transaction_id; /* Transaction ID */
-	uint8   protocol;       /* Service protocol type */
-	uint16  query_len;      /* Length of query */
-	uint16  response_len;   /* Length of response */
-	uint8   qrbuf[1];
-} wl_sd_qr_t;
-
-typedef struct {
-	uint16	period;                 /* extended listen period */
-	uint16	interval;               /* extended listen interval */
-} wl_sd_listen_t;
-
-#define WL_SD_STATE_IDLE 0x0000
-#define WL_SD_SEARCH_SVC 0x0001
-#define WL_SD_ADV_SVC    0x0002
-
-enum wl_dd_state {
-    WL_DD_STATE_IDLE,
-    WL_DD_STATE_SEARCH,
-    WL_DD_STATE_LISTEN
-};
-
-#define MAX_SDO_PROTO_STR_LEN 20
-typedef struct wl_sdo_proto {
-	char str[MAX_SDO_PROTO_STR_LEN];
-	u32 val;
-} wl_sdo_proto_t;
-
-typedef struct sd_offload {
-	u32 sd_state;
-	enum wl_dd_state dd_state;
-	wl_sd_listen_t sd_listen;
-} sd_offload_t;
-
-typedef struct sdo_event {
-	u8 addr[ETH_ALEN];
-	uint16	freq;        /* channel Freq */
-	uint8	count;       /* Tlv count  */
-	uint16	update_ind;
-} sdo_event_t;
-#endif /* WL_SDO */
-
 #ifdef WL11U
 /* Max length of Interworking element */
 #define IW_IES_MAX_BUF_LEN 		9
-#endif
-#ifdef WLFBT
-#define FBT_KEYLEN		32
 #endif
 #define MAX_EVENT_BUF_NUM 16
 typedef struct wl_eventmsg_buf {
@@ -570,7 +515,7 @@ struct bcm_cfg80211 {
 	bool scan_tried;	/* indicates if first scan attempted */
 #if defined(BCMSDIO) || defined(BCMPCIE)
 	bool wlfc_on;
-#endif 
+#endif
 	bool vsdb_mode;
 	bool roamoff_on_concurrent;
 	u8 *ioctl_buf;		/* ioctl buffer */
@@ -585,6 +530,7 @@ struct bcm_cfg80211 {
 	u64 send_action_id;
 	u64 last_roc_id;
 	wait_queue_head_t netif_change_event;
+	wait_queue_head_t event_sync_wq;
 	wl_if_event_info if_event_info;
 	struct completion send_af_done;
 	struct afx_hdl *afx_hdl;
@@ -598,9 +544,6 @@ struct bcm_cfg80211 {
 		struct net_info *_net_info, enum wl_status state, bool set);
 	unsigned long interrested_state;
 	wlc_ssid_t hostapd_ssid;
-#ifdef WL_SDO
-	sd_offload_t *sdo;
-#endif
 #ifdef WL11U
 	bool wl11u;
 	u8 iw_ie[IW_IES_MAX_BUF_LEN];
@@ -622,22 +565,11 @@ struct bcm_cfg80211 {
 	struct delayed_work pm_enable_work;
 	vndr_ie_setbuf_t *ibss_vsie;	/* keep the VSIE for IBSS */
 	int ibss_vsie_len;
-#ifdef WLAIBSS
-	u32 aibss_txfail_pid;
-	u32 aibss_txfail_seq;
-#endif /* WLAIBSS */
 	u32 rmc_event_pid;
 	u32 rmc_event_seq;
-#ifdef WLAIBSS_MCHAN
-	struct ether_addr ibss_if_addr;
-	bcm_struct_cfgdev *ibss_cfgdev; /* For AIBSS */
-#endif /* WLAIBSS_MCHAN */
 	bcm_struct_cfgdev *bss_cfgdev;  /* For DUAL STA/STA+AP */
 	s32 cfgdev_bssidx;
 	bool bss_pending_op;		/* indicate where there is a pending IF operation */
-#ifdef WLFBT
-	uint8 fbt_key[FBT_KEYLEN];
-#endif
 	bool roam_offload;
 	bool nan_running;
 };
@@ -944,15 +876,6 @@ extern s32 wl_cfg80211_set_p2p_ps(struct net_device *net, char* buf, int len);
 void* wl_cfg80211_btcoex_init(struct net_device *ndev);
 void wl_cfg80211_btcoex_deinit(void);
 
-#ifdef WL_SDO
-extern s32 wl_cfg80211_sdo_init(struct bcm_cfg80211 *cfg);
-extern s32 wl_cfg80211_sdo_deinit(struct bcm_cfg80211 *cfg);
-extern s32 wl_cfg80211_sd_offload(struct net_device *net, char *cmd, char* buf, int len);
-extern s32 wl_cfg80211_pause_sdo(struct net_device *dev, struct bcm_cfg80211 *cfg);
-extern s32 wl_cfg80211_resume_sdo(struct net_device *dev, struct bcm_cfg80211 *cfg);
-
-#endif
-
 #ifdef WL_SUPPORT_AUTO_CHANNEL
 #define CHANSPEC_BUF_SIZE	1024
 #define CHAN_SEL_IOCTL_DELAY	300
@@ -985,9 +908,6 @@ extern void wl_stop_wait_next_action_frame(struct bcm_cfg80211 *cfg, struct net_
 #ifdef WL_HOST_BAND_MGMT
 extern s32 wl_cfg80211_set_band(struct net_device *ndev, int band);
 #endif /* WL_HOST_BAND_MGMT */
-#if defined(DHCP_SCAN_SUPPRESS)
-extern int wl_cfg80211_scan_suppress(struct net_device *dev, int suppress);
-#endif /* OEM_ANDROID */
 extern void wl_cfg80211_add_to_eventbuffer(wl_eventmsg_buf_t *ev, u16 event, bool set);
 extern s32 wl_cfg80211_apply_eventbuffer(struct net_device *ndev,
 	struct bcm_cfg80211 *cfg, wl_eventmsg_buf_t *ev);
@@ -1006,14 +926,7 @@ extern void wl_cfg80211_update_power_mode(struct net_device *dev);
 #define wl_escan_init_sync_id(a)
 extern void wl_cfg80211_ibss_vsie_set_buffer(vndr_ie_setbuf_t *ibss_vsie, int ibss_vsie_len);
 extern s32 wl_cfg80211_ibss_vsie_delete(struct net_device *dev);
-#ifdef WLAIBSS
-extern void wl_cfg80211_set_txfail_pid(int pid);
-#endif /* WLAIBSS */
 extern void wl_cfg80211_set_rmc_pid(int pid);
-
-#ifdef WLFBT
-extern void wl_cfg80211_get_fbt_key(uint8 *key);
-#endif
 
 /* Action frame specific functions */
 extern u8 wl_get_action_category(void *frame, u32 frame_len);

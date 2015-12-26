@@ -286,7 +286,7 @@ extern int bcm_iovar_lencheck(const bcm_iovar_t *table, void *arg, int len, bool
 #if defined(WLTINYDUMP) || defined(WLMSG_INFORM) || defined(WLMSG_ASSOC) || \
 	defined(WLMSG_PRPKT) || defined(WLMSG_WSEC)
 extern int bcm_format_ssid(char* buf, const uchar ssid[], uint ssid_len);
-#endif 
+#endif
 #endif	/* BCMDRIVER */
 
 /* Base type definitions */
@@ -944,6 +944,7 @@ extern void bcm_mwbmap_audit(struct bcm_mwbmap * mwbmap_hdl);
  */
 extern void * id16_map_init(osl_t *osh, uint16 total_ids, uint16 start_val16);
 extern void * id16_map_fini(osl_t *osh, void * id16_map_hndl);
+extern void id16_map_clear(void * id16_map_hndl, uint16 total_ids, uint16 start_val16);
 
 /* Allocate a unique 16bit id */
 extern uint16 id16_map_alloc(void * id16_map_hndl);

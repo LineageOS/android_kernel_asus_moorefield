@@ -30,7 +30,10 @@
 #include <pcicfg.h>
 #include <dhd_pcie.h>
 #include <dhd_linux.h>
-#ifdef CONFIG_ARCH_MSM
+#ifdef DHD_WAKE_STATUS
+#include <linux/wakeup_reason.h>
+#endif
+#if defined (CONFIG_ARCH_MSM)
 #include <mach/msm_pcie.h>
 #endif
 
@@ -73,6 +76,12 @@ typedef struct dhdpcie_info
 	int	irq;
 	char pciname[32];
 	struct pci_saved_state* state;
+#ifdef DHD_WAKE_STATUS
+	spinlock_t	pcie_lock;
+	unsigned int	total_wake_count;
+	int	pkt_wake;
+	int	wake_irq;
+#endif
 } dhdpcie_info_t;
 
 
@@ -161,7 +170,8 @@ static int dhdpcie_set_suspend_resume(struct pci_dev *pdev, bool state)
 	}
 
 	if (bus && ((bus->dhd->busstate == DHD_BUS_SUSPEND)||
-		(bus->dhd->busstate == DHD_BUS_DATA))) {
+		(bus->dhd->busstate == DHD_BUS_DATA)) &&
+		(bus->suspended != state)) {
 
 		ret = dhdpcie_bus_suspend(bus, state);
 	}
@@ -182,9 +192,10 @@ static int dhdpcie_pci_resume(struct pci_dev *pdev)
 static int dhdpcie_suspend_dev(struct pci_dev *dev)
 {
 	int ret;
-	DHD_TRACE_HW4(("%s: Enter\n", __FUNCTION__));
+	dhdpcie_info_t *pch = pci_get_drvdata(dev);
 	dhdpcie_pme_active(dev, TRUE);
 	pci_save_state(dev);
+	pch->state = pci_store_saved_state(dev);
 	pci_enable_wake(dev, PCI_D0, TRUE);
 	pci_disable_device(dev);
 	ret = pci_set_power_state(dev, PCI_D3hot);
@@ -195,10 +206,43 @@ static int dhdpcie_suspend_dev(struct pci_dev *dev)
 	return ret;
 }
 
+int dhd_os_get_wake_irq(dhd_pub_t *pub);
+
+#ifdef DHD_WAKE_STATUS
+int bcmpcie_get_total_wake(struct dhd_bus *bus)
+{
+	dhdpcie_info_t *pch = pci_get_drvdata(bus->dev);
+
+	return pch->total_wake_count;
+}
+
+int bcmpcie_set_get_wake(struct dhd_bus *bus, int flag)
+{
+	dhdpcie_info_t *pch = pci_get_drvdata(bus->dev);
+	unsigned long flags;
+	int ret;
+
+	spin_lock_irqsave(&pch->pcie_lock, flags);
+
+	ret = pch->pkt_wake;
+	pch->total_wake_count += flag;
+	pch->pkt_wake = flag;
+
+	spin_unlock_irqrestore(&pch->pcie_lock, flags);
+	return ret;
+}
+#endif
+
 static int dhdpcie_resume_dev(struct pci_dev *dev)
 {
 	int err = 0;
-	DHD_TRACE_HW4(("%s: Enter\n", __FUNCTION__));
+	dhdpcie_info_t *pch = pci_get_drvdata(dev);
+
+#ifdef DHD_WAKE_STATUS
+	if (check_wakeup_reason(pch->wake_irq))
+		bcmpcie_set_get_wake(pch->bus, 1);
+#endif
+	pci_load_and_free_saved_state(dev, &pch->state);
 	pci_restore_state(dev);
 	err = pci_enable_device(dev);
 	if (err) {
@@ -312,7 +356,7 @@ dhdpcie_detach(dhdpcie_info_t *pch)
 		osl_t *osh = pch->osh;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 		if (!dhd_download_fw_on_driverload)
-			pci_load_and_free_saved_state(pch->dev, &pch->state);
+			pci_load_and_free_saved_state(pch->dev, &pch->default_state);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 		MFREE(osh, pch, sizeof(dhdpcie_info_t));
 	}
@@ -431,9 +475,9 @@ int dhdpcie_get_resource(dhdpcie_info_t *dhdpcie_info)
 			 * in case of built in driver
 			 */
 			pci_save_state(pdev);
-			dhdpcie_info->state = pci_store_saved_state(pdev);
+			dhdpcie_info->default_state = pci_store_saved_state(pdev);
 
-			if (dhdpcie_info->state == NULL) {
+			if (dhdpcie_info->default_state == NULL) {
 				DHD_ERROR(("%s pci_store_saved_state returns NULL\n",
 					__FUNCTION__));
 				REG_UNMAP(dhdpcie_info->regs);
@@ -487,12 +531,21 @@ int dhdpcie_init(struct pci_dev *pdev)
 	dhdpcie_info_t		*dhdpcie_info =  NULL;
 	wifi_adapter_info_t	*adapter = NULL;
 
+	DHD_ERROR(("%s enter\n", __FUNCTION__));
 	do {
 		/* osl attach */
 		if (!(osh = osl_attach(pdev, PCI_BUS, FALSE))) {
 			DHD_ERROR(("%s: osl_attach failed\n", __FUNCTION__));
 			break;
 		}
+		/* initialize static buffer */
+		adapter = dhd_wifi_platform_get_adapter(PCI_BUS, pdev->bus->number,
+			PCI_SLOT(pdev->devfn));
+		if (adapter != NULL)
+			DHD_ERROR(("%s: found adapter info '%s'\n", __FUNCTION__, adapter->name));
+		else
+			DHD_ERROR(("%s: can't find adapter info for this chip\n", __FUNCTION__));
+		osl_static_mem_init(osh, adapter);
 
 		/* initialize static buffer */
 		adapter = dhd_wifi_platform_get_adapter(PCI_BUS, pdev->bus->number,
@@ -561,7 +614,18 @@ int dhdpcie_init(struct pci_dev *pdev)
 			DHD_ERROR(("%s(): ERROR.. dhd_register_if() failed\n", __FUNCTION__));
 			break;
 		}
-
+		if (dhd_download_fw_on_driverload) {
+			if (dhd_bus_start(bus->dhd)) {
+				DHD_ERROR(("%s: dhd_bud_start() failed\n", __FUNCTION__));
+				break;
+			}
+		}
+#ifdef DHD_WAKE_STATUS
+		spin_lock_init(&dhdpcie_info->pcie_lock);
+		dhdpcie_info->wake_irq = dhd_os_get_wake_irq(bus->dhd);
+		if (dhdpcie_info->wake_irq == -1)
+			dhdpcie_info->wake_irq = pdev->irq;
+#endif
 		dhdpcie_init_succeeded = TRUE;
 
 		DHD_TRACE(("%s:Exit - SUCCESS \n", __FUNCTION__));
@@ -743,7 +807,7 @@ dhdpcie_enable_device(dhd_bus_t *bus)
 		return BCME_ERROR;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
-	if (pci_load_saved_state(bus->dev, pch->state))
+	if (pci_load_saved_state(bus->dev, pch->default_state))
 		pci_disable_device(bus->dev);
 	else {
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
@@ -757,6 +821,140 @@ dhdpcie_enable_device(dhd_bus_t *bus)
 
 	if (ret)
 		pci_disable_device(bus->dev);
+
+	return ret;
+}
+int
+dhdpcie_alloc_resource(dhd_bus_t *bus)
+{
+	dhdpcie_info_t *dhdpcie_info;
+	phys_addr_t bar0_addr, bar1_addr;
+	ulong bar1_size;
+
+	do {
+		if (bus == NULL) {
+			DHD_ERROR(("%s: bus is NULL\n", __FUNCTION__));
+			break;
+		}
+
+		if (bus->dev == NULL) {
+			DHD_ERROR(("%s: bus->dev is NULL\n", __FUNCTION__));
+			break;
+		}
+
+		dhdpcie_info = pci_get_drvdata(bus->dev);
+		if (dhdpcie_info == NULL) {
+			DHD_ERROR(("%s: dhdpcie_info is NULL\n", __FUNCTION__));
+			break;
+		}
+
+		bar0_addr = pci_resource_start(bus->dev, 0);	/* Bar-0 mapped address */
+		bar1_addr = pci_resource_start(bus->dev, 2);	/* Bar-1 mapped address */
+
+		/* read Bar-1 mapped memory range */
+		bar1_size = pci_resource_len(bus->dev, 2);
+
+		if ((bar1_size == 0) || (bar1_addr == 0)) {
+			printf("%s: BAR1 Not enabled for this device size(%ld),"
+				" addr(0x"PRINTF_RESOURCE")\n",
+				__FUNCTION__, bar1_size, bar1_addr);
+			break;
+		}
+
+		dhdpcie_info->regs = (volatile char *) REG_MAP(bar0_addr, DONGLE_REG_MAP_SIZE);
+		if (!dhdpcie_info->regs) {
+			DHD_ERROR(("%s: ioremap() for regs is failed\n", __FUNCTION__));
+			break;
+		}
+
+		bus->regs = dhdpcie_info->regs;
+		dhdpcie_info->tcm = (volatile char *) REG_MAP(bar1_addr, DONGLE_TCM_MAP_SIZE);
+		dhdpcie_info->tcm_size = DONGLE_TCM_MAP_SIZE;
+		if (!dhdpcie_info->tcm) {
+			DHD_ERROR(("%s: ioremap() for regs is failed\n", __FUNCTION__));
+			REG_UNMAP(dhdpcie_info->regs);
+			bus->regs = NULL;
+			break;
+		}
+
+		bus->tcm = dhdpcie_info->tcm;
+
+		DHD_TRACE(("%s:Phys addr : reg space = %p base addr 0x"PRINTF_RESOURCE" \n",
+			__FUNCTION__, dhdpcie_info->regs, bar0_addr));
+		DHD_TRACE(("%s:Phys addr : tcm_space = %p base addr 0x"PRINTF_RESOURCE" \n",
+			__FUNCTION__, dhdpcie_info->tcm, bar1_addr));
+
+		return 0;
+	} while (0);
+
+	return BCME_ERROR;
+}
+
+void
+dhdpcie_free_resource(dhd_bus_t *bus)
+{
+	dhdpcie_info_t *dhdpcie_info;
+
+	if (bus == NULL) {
+		DHD_ERROR(("%s: bus is NULL\n", __FUNCTION__));
+		return;
+	}
+
+	if (bus->dev == NULL) {
+		DHD_ERROR(("%s: bus->dev is NULL\n", __FUNCTION__));
+		return;
+	}
+
+	dhdpcie_info = pci_get_drvdata(bus->dev);
+	if (dhdpcie_info == NULL) {
+		DHD_ERROR(("%s: dhdpcie_info is NULL\n", __FUNCTION__));
+		return;
+	}
+
+	if (bus->regs) {
+		REG_UNMAP(dhdpcie_info->regs);
+		bus->regs = NULL;
+	}
+
+	if (bus->tcm) {
+		REG_UNMAP(dhdpcie_info->tcm);
+		bus->tcm = NULL;
+	}
+}
+
+int
+dhdpcie_bus_request_irq(struct dhd_bus *bus)
+{
+	dhdpcie_info_t *dhdpcie_info;
+	int ret = 0;
+
+	if (bus == NULL) {
+		DHD_ERROR(("%s: bus is NULL\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+
+	if (bus->dev == NULL) {
+		DHD_ERROR(("%s: bus->dev is NULL\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+
+	dhdpcie_info = pci_get_drvdata(bus->dev);
+	if (dhdpcie_info == NULL) {
+		DHD_ERROR(("%s: dhdpcie_info is NULL\n", __FUNCTION__));
+		return BCME_ERROR;
+	}
+
+	if (bus->intr) {
+		/* Register interrupt callback, but mask it (not operational yet). */
+		DHD_INTR(("%s: Registering and masking interrupts\n", __FUNCTION__));
+		dhdpcie_bus_intr_disable(bus);
+		ret = dhdpcie_request_irq(dhdpcie_info);
+		if (ret) {
+			DHD_ERROR(("%s: request_irq() failed, ret=%d\n",
+				__FUNCTION__, ret));
+			return ret;
+		}
+	}
 
 	return ret;
 }

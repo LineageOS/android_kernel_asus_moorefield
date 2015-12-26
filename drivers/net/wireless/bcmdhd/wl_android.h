@@ -13,7 +13,7 @@
 /* If any feature uses the Generic Netlink Interface, put it here to enable WL_GENL
  * automatically
  */
-#if defined(WL_SDO) || defined(BT_WIFI_HANDOVER) || defined(WL_NAN)
+#if defined(BT_WIFI_HANDOVER) || defined(WL_NAN)
 #define WL_GENL
 #endif
 
@@ -36,7 +36,7 @@ int wl_android_init(void);
 int wl_android_exit(void);
 void wl_android_post_init(void);
 int wl_android_wifi_on(struct net_device *dev);
-int wl_android_wifi_off(struct net_device *dev);
+int wl_android_wifi_off(struct net_device *dev, bool on_failure);
 int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd);
 
 #ifdef WL_GENL
