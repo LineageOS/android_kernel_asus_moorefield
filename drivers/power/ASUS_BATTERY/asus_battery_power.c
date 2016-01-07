@@ -803,12 +803,7 @@ static int asus_battery_update_status_no_mutex(int percentage)
 					smb1357_set_Ichg(700);
 					smb1357_charging_toggle(true);
 					temp_type = IN_15_100;
-					if(hvdcp_mode==1) {
-						if(percentage<=70)
-							status = POWER_SUPPLY_STATUS_QUICK_CHARGING;
-						else
-							status = POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING;
-					}
+					status = POWER_SUPPLY_STATUS_CHARGING;
 				}
 				/*recharge*/
 				if((percentage <= 98)&&(smb1357_get_charging_status() == POWER_SUPPLY_STATUS_FULL)) {
@@ -827,10 +822,7 @@ static int asus_battery_update_status_no_mutex(int percentage)
 					highchgvol_flag = 0;
 					if(hvdcp_mode==1) {
 						smb1357_set_Ichg(1400);
-						if(percentage<=70)
-							status = POWER_SUPPLY_STATUS_QUICK_CHARGING;
-						else
-							status = POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING;
+						status = POWER_SUPPLY_STATUS_CHARGING;
 					} else {
 						if(Read_PROJ_ID()==PROJ_ID_ZX550ML)
 							smb1357_set_Ichg(2000);
@@ -872,10 +864,7 @@ static int asus_battery_update_status_no_mutex(int percentage)
 							smb1357_set_Ichg(1400);
 							hvdcp_vbat_flag = 1;
 						}
-						if(percentage<=70)
-							status = POWER_SUPPLY_STATUS_QUICK_CHARGING;
-						else
-							status = POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING;
+						status = POWER_SUPPLY_STATUS_CHARGING;
 					}else {
 						if(Read_PROJ_ID()==PROJ_ID_ZX550ML)
 							smb1357_set_Ichg(2000);
@@ -913,10 +902,7 @@ handle400_450:
 							smb1357_set_Ichg(1400);
 							hvdcp_vbat_flag = 1;
 						}
-						if(percentage<=70)
-							status = POWER_SUPPLY_STATUS_QUICK_CHARGING;
-						else
-							status = POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING;
+						status = POWER_SUPPLY_STATUS_CHARGING;
 					}else {
 						if(Read_PROJ_ID()==PROJ_ID_ZX550ML)
 							smb1357_set_Ichg(2000);
@@ -954,10 +940,7 @@ handle450_500:
 							smb1357_set_Ichg(1400);
 							hvdcp_vbat_flag = 1;
 						}
-						if(percentage<=70)
-							status = POWER_SUPPLY_STATUS_QUICK_CHARGING;
-						else
-							status = POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING;
+						status = POWER_SUPPLY_STATUS_CHARGING;
 					}else {
 						if(Read_PROJ_ID()==PROJ_ID_ZX550ML)
 							smb1357_set_Ichg(2000);
@@ -992,12 +975,7 @@ handle500_600:
 					smb1357_set_Ichg(1400);
 					smb1357_charging_toggle(true);
 					temp_type = IN_500_600;
-					if(hvdcp_mode==1) {
-						if(percentage<=70)
-							status = POWER_SUPPLY_STATUS_QUICK_CHARGING;
-						else
-							status = POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING;
-					}
+					status = POWER_SUPPLY_STATUS_CHARGING;
 				}
 			}
 			if(temperature >=600){
@@ -1167,10 +1145,6 @@ final:
                 printk(KERN_WARNING "[BATT] battery status = POWER_SUPPLY_STATUS_NOT_CHARGING\n");
         else if (status == POWER_SUPPLY_STATUS_UNKNOWN)
                 printk(KERN_WARNING "[BATT] battery status = POWER_SUPPLY_STATUS_UNKNOWN\n");
-	else if (status == POWER_SUPPLY_STATUS_QUICK_CHARGING)
-                printk(KERN_WARNING "[BATT] battery status = POWER_SUPPLY_STATUS_QUICK_CHARGING\n");
-	else if (status == POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING)
-                printk(KERN_WARNING "[BATT] battery status = POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING\n");
 
 	/* LED behavior in charger mode*/
 	if(boot_mode == 4) {
@@ -1186,7 +1160,7 @@ final:
 #endif
 			led_brightness_set(0, 0);
 			led_brightness_set(1, 1);
-		}else if ((status == POWER_SUPPLY_STATUS_CHARGING)||(status == POWER_SUPPLY_STATUS_QUICK_CHARGING)||(status == POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING)) {
+		}else if (status == POWER_SUPPLY_STATUS_CHARGING) {
 			led_brightness_set(0, 1);
 			led_brightness_set(1, 1);
 		}else {

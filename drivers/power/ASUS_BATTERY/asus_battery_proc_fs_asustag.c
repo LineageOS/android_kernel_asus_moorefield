@@ -22,9 +22,7 @@ char str_batt_status[6][40] = {"POWER_SUPPLY_STATUS_UNKNOWN",
                                 "POWER_SUPPLY_STATUS_CHARGING", 
                                 "POWER_SUPPLY_STATUS_DISCHARGING", 
                                 "POWER_SUPPLY_STATUS_NOT_CHARGING", 
-                                "POWER_SUPPLY_STATUS_FULL",
-                                "POWER_SUPPLY_STATUS_QUICK_CHARGING",
-				"POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING"};
+                                "POWER_SUPPLY_STATUS_FULL"};
 
 char str_batt_level[6][40] = {"POWER_SUPPLY_CAPACITY_LEVEL_UNKNOWN",
                                 "POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL",
@@ -63,10 +61,6 @@ ssize_t asus_battery_info_proc_read(struct file *filp, char __user *buffer, size
         mutex_lock(&batt_info_mutex);
         tmp_batt_info = batt_info;
         mutex_unlock(&batt_info_mutex);
-	if(tmp_batt_info.status==9)
-		tmp_batt_info.status = 5;
-	else if(tmp_batt_info.status==10)
-		tmp_batt_info.status = 6;
         len += sprintf(buff+len, 
                         "battery_status=%s\n"
                         "battery_voltage=%d\n"
