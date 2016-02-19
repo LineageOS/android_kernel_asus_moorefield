@@ -112,6 +112,7 @@ extern int gesture_mode;
 
 extern int glove_mode;
 extern int cover_mode;
+extern int keypad_enable;
 int sleep_mode = 0;
 
 struct ftxxxx_platform_data ftxxxx_pdata = {
@@ -678,6 +679,11 @@ static void ftxxxx_report_value(struct ftxxxx_ts_data *data)
 	for (i = 0; i < event->touch_point; i++)
 	{
 		//dev_dbg(&data->client->dev, "[ftxxxx] event= %d, x= %d, y= %d, point= %d\n", event->au8_touch_event[i], event->au16_x[i], event->au16_y[i], event->touch_point);
+
+		if(!keypad_enable) {
+			input_mt_sync(data->input_dev);
+			continue;
+		}
 
 		if (event->au16_y[i]==2500)
 		{
