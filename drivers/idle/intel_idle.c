@@ -647,9 +647,6 @@ static int enter_s0ix_state(u32 eax, int gov_req_state, int s0ix_state,
 #endif
 	}
 
-	if (!need_resched() && is_irq_pending() == 0)
-		__get_cpu_var(update_buckets) = 0;
-
 	if (likely(eax == C6_HINT))
 		atomic_dec(&nr_cpus_in_c6);
 
@@ -781,20 +778,6 @@ static unsigned int get_target_residency(unsigned int cstate)
 }
 #endif
 
-#ifdef CONFIG_MOOREFIELD
-/* MOFD: Optimize special variants of S0i1 where low residency is sufficient */
-int low_latency_s0ix_state(int eax)
-{
-	u32 dsp_ss_pm_val;
-
-	dsp_ss_pm_val = intel_mid_msgbus_read32(PUNIT_PORT, DSP_SS_PM);
-	if (dsp_ss_pm_val & S0I1_DISPLAY_MODE)
-		eax = S0I1_STATE;
-
-	return eax;
-}
-#endif
-
 /**
  * intel_idle
  * @dev: cpuidle_device
@@ -811,9 +794,6 @@ static int intel_idle(struct cpuidle_device *dev,
 	unsigned long eax = flg2MWAIT(state->flags);
 	unsigned int cstate;
 	int cpu = smp_processor_id();
-#ifdef CONFIG_MOOREFIELD
-	int latency_req = pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
-#endif
 
 #if (defined(CONFIG_REMOVEME_INTEL_ATOM_MRFLD_POWER) && \
 	defined(CONFIG_PM_DEBUG))
@@ -845,21 +825,10 @@ static int intel_idle(struct cpuidle_device *dev,
 					0);
 #else
 
-#ifdef CONFIG_MOOREFIELD
-		if (eax >= C6_HINT && latency_req > S0i1_LATENCY
-			&& per_cpu(predicted_time, cpu) > LOW_LATENCY_S0I1)
-			eax = low_latency_s0ix_state(eax);
-#endif
-
 		__monitor((void *)&current_thread_info()->flags, 0, 0);
 		smp_mb();
 		if (!need_resched())
 			__mwait(eax, ecx);
-#if defined(CONFIG_REMOVEME_INTEL_ATOM_MDFLD_POWER) || \
-	defined(CONFIG_REMOVEME_INTEL_ATOM_CLV_POWER)
-		if (!need_resched() && is_irq_pending() == 0)
-			__get_cpu_var(update_buckets) = 0;
-#endif
 #endif /* CONFIG_XEN */
 	}
 
@@ -1212,8 +1181,6 @@ static int intel_idle_cpu_init(int cpu)
 
 	if (icpu->auto_demotion_disable_flags)
 		smp_call_function_single(cpu, auto_demotion_disable, NULL, 1);
-
-	per_cpu(update_buckets, cpu) = 1;
 
 	return 0;
 }
