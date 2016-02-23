@@ -150,14 +150,6 @@ struct menu_device {
 #define LOAD_INT(x) ((x) >> FSHIFT)
 #define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1-1)) * 100)
 
-/*
- * Define a variable per CPU in order to indicate when to
- * update the buckets or not. The buckets need to be updated
- * only when the wakeup is destinated to the CPU otherwise
- * consider a perfect prediction for the buckets.
- */
-DEFINE_PER_CPU(int, update_buckets);
-
 #if 0
 static int get_loadavg(void)
 {
@@ -318,8 +310,6 @@ again:
 	return ret;
 }
 
-DEFINE_PER_CPU(u64, predicted_time);
-
 /**
  * menu_select - selects the next idle state to enter
  * @drv: cpuidle driver containing state data
@@ -371,8 +361,6 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	/* Make sure to round up for half microseconds */
 	data->predicted_us = div_round64(data->expected_us * data->correction_factor[data->bucket],
 					 RESOLUTION * DECAY);
-
-	per_cpu(predicted_time, cpu) = data->predicted_us;
 
 #ifdef CONFIG_PM_DEBUG
 	/* Collect the idleness histogram data if it is activated */
@@ -503,9 +491,7 @@ static void menu_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	new_factor = data->correction_factor[data->bucket]
 			* (DECAY - 1) / DECAY;
 
-	/* if its a fake wakeup just consider it has perfect wakeup */
-	if ((__get_cpu_var(update_buckets)) &&
-		(data->expected_us > 0 && measured_us < MAX_INTERESTING))
+	if (data->expected_us > 0 && measured_us < MAX_INTERESTING)
 		new_factor += RESOLUTION * measured_us / data->expected_us;
 	else
 		/*
@@ -524,15 +510,9 @@ static void menu_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	data->correction_factor[data->bucket] = new_factor;
 
 	/* update the repeating-pattern data */
-	if (__get_cpu_var(update_buckets))
-		data->intervals[data->interval_ptr++] = last_idle_us;
-	else
-		data->intervals[data->interval_ptr++] = data->expected_us;
-
+	data->intervals[data->interval_ptr++] = last_idle_us;
 	if (data->interval_ptr >= INTERVALS)
 		data->interval_ptr = 0;
-
-	__get_cpu_var(update_buckets) = 1;
 }
 
 /**
