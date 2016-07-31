@@ -1,9 +1,12 @@
 /*
- * $Copyright Open Broadcom Corporation$
- *
  * Fundamental constants relating to Neighbor Discovery Protocol
  *
- * $Id: bcmipv6.h 439574 2013-11-27 06:37:37Z $
+ * $ Copyright Open Broadcom Corporation $
+ *
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmipv6.h 518342 2014-12-01 23:21:41Z $
  */
 
 #ifndef _bcmipv6_h_
@@ -96,9 +99,9 @@ BWL_PRE_PACKED_STRUCT struct ipv6_hdr {
 } BWL_POST_PACKED_STRUCT;
 
 /* Neighbor Advertisement/Solicitation Packet Structure */
-BWL_PRE_PACKED_STRUCT struct nd_msg {
-	struct icmp6_hdr	icmph;
-	struct ipv6_addr target;
+BWL_PRE_PACKED_STRUCT struct bcm_nd_msg {
+	struct	icmp6_hdr	icmph;
+	struct	ipv6_addr	target;
 } BWL_POST_PACKED_STRUCT;
 
 

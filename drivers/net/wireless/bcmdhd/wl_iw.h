@@ -1,9 +1,12 @@
 /*
  * Linux Wireless Extensions support
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: wl_iw.h 488316 2014-06-30 15:22:21Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: wl_iw.h 514727 2014-11-12 03:02:48Z $
  */
 
 #ifndef _wl_iw_h_
@@ -37,7 +40,7 @@
 #define TXPOWER_SET_CMD			"TXPOWER"
 
 #define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
-#define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
+#define MACSTR "%02x:%02x:%02x:%02x:%02x:%02x"
 
 /* Structure to keep global parameters */
 typedef struct wl_iw_extra_params {
@@ -48,21 +51,6 @@ struct cntry_locales_custom {
 	char iso_abbrev[WLC_CNTRY_BUF_SZ];	/* ISO 3166-1 country abbreviation */
 	char custom_locale[WLC_CNTRY_BUF_SZ];	/* Custom firmware locale */
 	int32 custom_locale_rev;		/* Custom local revisin default -1 */
-};
-struct txpwr_custom {
-	char iso_abbrev[WLC_CNTRY_BUF_SZ];	/* ISO 3166-1 country abbreviation */
-	char *max2g;          /*maxp2ga0*/
-	char *max5g[4];       /*maxp5ga0*/
-	/* 2.4G b mode txpwr */
-	char *bmodepo;       /*cckbw202gpo*/
-	/* 2.4G g mode txpwr */
-	char *gmodedotpo;    /*dot11agofdmhrbw202gpo*/
-	char *gmodepo;       /*ofdmlrbw202gpo*/
-	/* 2.4G n mode txpwr */
-	char *nmodebw20po;   /*mcsbw202gpo*/
-	char *nmodebw40po;   /*mcsbw402gpo*/
-	/* 5G low/middle/high txpwr */
-	char *agmodelmhpo;   /*all use same power level*/
 };
 /* ============================================== */
 /* Defines from wlc_pub.h */

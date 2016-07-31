@@ -1,9 +1,12 @@
 /*
  * Fundamental types and constants relating to WPA
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: wpa.h 450928 2014-01-23 14:13:38Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: wpa.h 518342 2014-12-01 23:21:41Z $
  */
 
 #ifndef _proto_wpa_h_
@@ -50,6 +53,8 @@ typedef BWL_PRE_PACKED_STRUCT struct
 #define WPA_IE_OUITYPE_LEN	4
 #define WPA_IE_FIXED_LEN	8
 #define WPA_IE_TAG_FIXED_LEN	6
+
+#define BIP_OUI_TYPE WPA2_OUI "\x06"
 
 typedef BWL_PRE_PACKED_STRUCT struct {
 	uint8 tag;	/* TAG */

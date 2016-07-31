@@ -1,9 +1,12 @@
 /*
  * Definitions for nl80211 vendor command/event access to host driver
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: brcm_nl80211.h 487126 2014-06-24 23:06:12Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: brcm_nl80211.h 556083 2015-05-12 14:03:00Z $
  *
  */
 
@@ -14,12 +17,14 @@
 
 enum wl_vendor_subcmd {
 	BRCM_VENDOR_SCMD_UNSPEC,
-	BRCM_VENDOR_SCMD_PRIV_STR
+	BRCM_VENDOR_SCMD_PRIV_STR,
+	BRCM_VENDOR_SCMD_BCM_STR
 };
+
 
 struct bcm_nlmsg_hdr {
 	uint cmd;	/* common ioctl definition */
-	uint len;	/* expected return buffer length */
+	int len;	/* expected return buffer length */
 	uint offset;	/* user buffer offset */
 	uint set;	/* get or set request optional */
 	uint magic;	/* magic number for verification */

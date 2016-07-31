@@ -1,9 +1,12 @@
 /*
  * 802.11e protocol header file
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: 802.11e.h 382883 2013-02-04 23:26:09Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: 802.11e.h 518342 2014-12-01 23:21:41Z $
  */
 
 #ifndef _802_11e_H_

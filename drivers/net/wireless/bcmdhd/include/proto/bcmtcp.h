@@ -1,9 +1,12 @@
 /*
  * Fundamental constants relating to TCP Protocol
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: bcmtcp.h 458522 2014-02-27 02:26:15Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmtcp.h 518342 2014-12-01 23:21:41Z $
  */
 
 #ifndef _bcmtcp_h_

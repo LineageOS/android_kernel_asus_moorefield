@@ -1,9 +1,12 @@
 /*
  * SDIO access interface for drivers - linux specific (pci only)
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: bcmsdh_linux.c 461444 2014-03-12 02:55:28Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmsdh_linux.c 514727 2014-11-12 03:02:48Z $
  */
 
 /**

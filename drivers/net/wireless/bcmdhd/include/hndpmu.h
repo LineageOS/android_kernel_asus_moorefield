@@ -1,9 +1,12 @@
 /*
  * HND SiliconBackplane PMU support.
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: hndpmu.h 471127 2014-04-17 23:24:23Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: hndpmu.h 530150 2015-01-29 08:43:40Z $
  */
 
 #ifndef _hndpmu_h_
@@ -19,5 +22,6 @@ extern void si_sdiod_drive_strength_init(si_t *sih, osl_t *osh, uint32 drivestre
 
 extern void si_pmu_minresmask_htavail_set(si_t *sih, osl_t *osh, bool set_clear);
 extern void si_pmu_slow_clk_reinit(si_t *sih, osl_t *osh);
+extern void si_pmu_avbtimer_enable(si_t *sih, osl_t *osh, bool set_flag);
 
 #endif /* _hndpmu_h_ */

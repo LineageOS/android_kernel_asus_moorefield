@@ -4,7 +4,7 @@
 #
 # Epivers.h version support svn/sparse/gclient workspaces
 #
-# $Id: epivers.sh 389103 2013-03-05 17:24:49Z $
+#
 #
 # Version generation works off of svn property HeadURL, if
 # not set it keys its versions from current svn workspace or
@@ -25,6 +25,20 @@
 
 # If the version header file already exists, increment its build number.
 # Otherwise, create a new file.
+#
+# Copyright (C) 2015, Broadcom Corporation
+# All Rights Reserved.
+# 
+# This is UNPUBLISHED PROPRIETARY SOURCE CODE of Broadcom Corporation;
+# the contents of this file may not be disclosed to third parties, copied
+# or duplicated in any form, in whole or in part, without the prior
+# written permission of Broadcom Corporation.
+#
+#
+# <<Broadcom-WL-IPTag/Proprietary:>>
+#
+# $Id: epivers.sh 514727 2014-11-12 03:02:48Z $
+
 if [ -f epivers.h ]; then
 
 	# If REUSE_VERSION is set, epivers iteration is not incremented
@@ -57,7 +71,7 @@ else # epivers.h doesn't exist
 	fi
 
 	# Following SVNURL should be expanded on checkout
-	SVNURL='$HeadURL: http://svn.sj.broadcom.com/svn/wlansvn/proj/tags/DHD/DHD_REL_1_201_34/src/include/epivers.sh $'
+	SVNURL='$HeadURL: http://svn.sj.broadcom.com/svn/wlansvn/proj/branches/DHD_TWIG_1_363_59/src/include/epivers.sh $'
 
 	# .gclient_info is created by gclient checkout/sync steps
 	# and contains "DEPS='<deps-url1> <deps-url2> ..." entry

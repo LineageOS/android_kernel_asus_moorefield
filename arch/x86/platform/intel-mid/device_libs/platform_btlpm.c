@@ -60,9 +60,9 @@ static int __init bluetooth_init(void)
 		return -ENODEV;
 	}
 #else
-	bcm_bt_lpm_pdata.gpio_enable = get_gpio_by_name("BT-EN");
+	bcm_bt_lpm_pdata.gpio_enable = 71;	//BT power on gpio
 	if (!gpio_is_valid(bcm_bt_lpm_pdata.gpio_enable)) {
-		pr_err("%s: gpio %s not found\n", __func__, "BT-EN");
+		pr_err("%s: gpio %s not found\n", __func__, "Number 71 for BT enable");
 		return -ENODEV;
 	}
 #endif

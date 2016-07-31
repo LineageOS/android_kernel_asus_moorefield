@@ -1,9 +1,12 @@
 /*
- * $Copyright Open Broadcom Corporation$
- *
  * Fundamental types and constants relating to WFA P2P (aka WiFi Direct)
  *
- * $Id: p2p.h 457033 2014-02-20 19:39:45Z $
+ * $ Copyright Open Broadcom Corporation $
+ *
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: p2p.h 536785 2015-02-24 08:35:00Z $
  */
 
 #ifndef _P2P_H_
@@ -542,9 +545,9 @@ typedef struct wifi_p2p_noa_se wifi_p2p_noa_se_t;
 #define	P2PSD_ACTION_ID_GAS_IRESP	0x0b
 				/* Action value for GAS Initial Response AF */
 #define	P2PSD_ACTION_ID_GAS_CREQ	0x0c
-				/* Action value for GAS Comback Request AF */
+				/* Action value for GAS Comeback Request AF */
 #define	P2PSD_ACTION_ID_GAS_CRESP	0x0d
-				/* Action value for GAS Comback Response AF */
+				/* Action value for GAS Comeback Response AF */
 #define P2PSD_AD_EID				0x6c
 				/* Advertisement Protocol IE ID */
 #define P2PSD_ADP_TUPLE_QLMT_PAMEBI	0x00

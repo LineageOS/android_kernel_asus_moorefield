@@ -2,9 +2,12 @@
  * Broadcom Dongle Host Driver (DHD), Generic work queue framework
  * Generic interface to handle dhd deferred work events
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: dhd_linux_wq.h 449578 2014-01-17 13:53:20Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: dhd_linux_wq.h 514727 2014-11-12 03:02:48Z $
  */
 #ifndef _dhd_linux_wq_h_
 #define _dhd_linux_wq_h_
@@ -18,6 +21,7 @@ enum _wq_event {
 	DHD_WQ_WORK_SET_MCAST_LIST,
 	DHD_WQ_WORK_IPV6_NDO,
 	DHD_WQ_WORK_HANG_MSG,
+	DHD_WQ_WORK_SOC_RAM_DUMP,
 
 	DHD_MAX_WQ_EVENTS
 };

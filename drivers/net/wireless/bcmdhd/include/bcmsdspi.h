@@ -3,7 +3,10 @@
  *
  * $ Copyright Open Broadcom Corporation $
  *
- * $Id: bcmsdspi.h 294363 2011-11-06 23:02:20Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmsdspi.h 514727 2014-11-12 03:02:48Z $
  */
 #ifndef	_BCM_SD_SPI_H
 #define	_BCM_SD_SPI_H

@@ -1,9 +1,12 @@
 /*
  * HND arm trap handling.
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: hnd_armtrap.h 470663 2014-04-16 00:24:43Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: hnd_armtrap.h 514727 2014-11-12 03:02:48Z $
  */
 
 #ifndef	_hnd_armtrap_h_
@@ -37,6 +40,7 @@
 #define	TR_PC		TR_REG(15)
 
 #define	TRAP_T_SIZE	80
+#define ASSERT_TRAP_SVC_NUMBER	255
 
 #ifndef	_LANGUAGE_ASSEMBLY
 

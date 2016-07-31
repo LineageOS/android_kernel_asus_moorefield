@@ -1,9 +1,12 @@
 /*
  * BT-AMP (BlueTooth Alternate Mac and Phy) 802.11 PAL (Protocol Adaptation Layer)
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: 802.11_bta.h 382882 2013-02-04 23:24:31Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: 802.11_bta.h 518342 2014-12-01 23:21:41Z $
 */
 
 #ifndef _802_11_BTA_H_

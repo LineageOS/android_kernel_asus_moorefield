@@ -15,8 +15,12 @@
  * #include <packed_section_end.h>
  *
  *
- * $Copyright Open Broadcom Corporation$
- * $Id: packed_section_start.h 437241 2013-11-18 07:39:24Z $
+ * $ Copyright Open Broadcom Corporation $
+ *
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: packed_section_start.h 514727 2014-11-12 03:02:48Z $
  */
 
 

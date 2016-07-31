@@ -1,9 +1,12 @@
 /*
  * Dongle WL Header definitions
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: dngl_wlhdr.h 464743 2014-03-25 21:04:32Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: dngl_wlhdr.h 514727 2014-11-12 03:02:48Z $
  */
 
 #ifndef _dngl_wlhdr_h_

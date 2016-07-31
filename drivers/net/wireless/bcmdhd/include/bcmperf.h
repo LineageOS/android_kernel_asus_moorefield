@@ -1,9 +1,12 @@
 /*
  * Performance counters software interface.
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: bcmperf.h 241182 2011-02-17 21:50:03Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmperf.h 514727 2014-11-12 03:02:48Z $
  */
 /* essai */
 #ifndef _BCMPERF_H_

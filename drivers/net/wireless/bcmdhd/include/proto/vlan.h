@@ -1,9 +1,12 @@
 /*
  * 802.1Q VLAN protocol definitions
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: vlan.h 382883 2013-02-04 23:26:09Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: vlan.h 518342 2014-12-01 23:21:41Z $
  */
 
 #ifndef _vlan_h_

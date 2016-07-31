@@ -4,9 +4,12 @@
  *
  * Definitions subject to change without notice.
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: bcmcdc.h 318308 2012-03-02 02:23:42Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmcdc.h 514727 2014-11-12 03:02:48Z $
  */
 #ifndef _bcmcdc_h_
 #define	_bcmcdc_h_

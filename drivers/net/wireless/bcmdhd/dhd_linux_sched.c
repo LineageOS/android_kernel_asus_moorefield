@@ -1,9 +1,12 @@
 /*
  * Expose some of the kernel scheduler routines
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: dhd_linux_sched.c 457570 2014-02-23 13:54:46Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: dhd_linux_sched.c 514727 2014-11-12 03:02:48Z $
  */
 #include <linux/kernel.h>
 #include <linux/module.h>

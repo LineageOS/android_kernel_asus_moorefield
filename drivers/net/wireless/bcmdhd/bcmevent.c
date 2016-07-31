@@ -1,12 +1,17 @@
 /*
  * bcmevent read-only data shared by kernel or app layers
  *
- * $Copyright Open Broadcom Corporation$
- * $Id: bcmevent.c 487838 2014-06-27 05:51:44Z $
+ * $ Copyright Open Broadcom Corporation $
+ *
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmevent.c 530174 2015-01-29 09:47:55Z $
  */
 
 #include <typedefs.h>
 #include <bcmutils.h>
+#include <bcmendian.h>
 #include <proto/ethernet.h>
 #include <proto/bcmeth.h>
 #include <proto/bcmevent.h>
@@ -56,6 +61,7 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 	BCMEVENT_NAME(WLC_E_BCNLOST_MSG),
 	BCMEVENT_NAME(WLC_E_ROAM_PREP),
 	BCMEVENT_NAME(WLC_E_PFN_NET_FOUND),
+	BCMEVENT_NAME(WLC_E_PFN_SCAN_ALLGONE),
 	BCMEVENT_NAME(WLC_E_PFN_NET_LOST),
 #if defined(IBSS_PEER_DISCOVERY_EVENT)
 	BCMEVENT_NAME(WLC_E_IBSS_ASSOC),
@@ -83,26 +89,10 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 	BCMEVENT_NAME(WLC_E_P2P_DISC_LISTEN_COMPLETE),
 #endif
 	BCMEVENT_NAME(WLC_E_RSSI),
-	BCMEVENT_NAME(WLC_E_PFN_SCAN_COMPLETE),
 	BCMEVENT_NAME(WLC_E_EXTLOG_MSG),
-#ifdef WIFI_ACT_FRAME
 	BCMEVENT_NAME(WLC_E_ACTION_FRAME),
 	BCMEVENT_NAME(WLC_E_ACTION_FRAME_RX),
 	BCMEVENT_NAME(WLC_E_ACTION_FRAME_COMPLETE),
-#endif
-#if 0 && (NDISVER >= 0x0620)
-	BCMEVENT_NAME(WLC_E_PRE_ASSOC_IND),
-	BCMEVENT_NAME(WLC_E_PRE_REASSOC_IND),
-	BCMEVENT_NAME(WLC_E_CHANNEL_ADOPTED),
-	BCMEVENT_NAME(WLC_E_AP_STARTED),
-	BCMEVENT_NAME(WLC_E_DFS_AP_STOP),
-	BCMEVENT_NAME(WLC_E_DFS_AP_RESUME),
-	BCMEVENT_NAME(WLC_E_ASSOC_IND_NDIS),
-	BCMEVENT_NAME(WLC_E_REASSOC_IND_NDIS),
-	BCMEVENT_NAME(WLC_E_ACTION_FRAME_RX_NDIS),
-	BCMEVENT_NAME(WLC_E_AUTH_REQ),
-	BCMEVENT_NAME(WLC_E_IBSS_COALESCE),
-#endif 
 #ifdef BCMWAPI_WAI
 	BCMEVENT_NAME(WLC_E_WAI_STA_EVENT),
 	BCMEVENT_NAME(WLC_E_WAI_MSG),
@@ -156,10 +146,15 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 #ifdef PROP_TXSTATUS
 	BCMEVENT_NAME(WLC_E_BCMC_CREDIT_SUPPORT),
 #endif
+	BCMEVENT_NAME(WLC_E_PSTA_PRIMARY_INTF_IND),
 	BCMEVENT_NAME(WLC_E_TXFAIL_THRESH),
 #ifdef WLAIBSS
 	BCMEVENT_NAME(WLC_E_AIBSS_TXFAIL),
 #endif /* WLAIBSS */
+#ifdef GSCAN_SUPPORT
+	BCMEVENT_NAME(WLC_E_PFN_GSCAN_FULL_RESULT),
+	BCMEVENT_NAME(WLC_E_PFN_SWC),
+#endif /* GSCAN_SUPPORT */
 #ifdef WLBSSLOAD_REPORT
 	BCMEVENT_NAME(WLC_E_BSS_LOAD),
 #endif
@@ -169,7 +164,13 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 #ifdef WLFBT
 	BCMEVENT_NAME(WLC_E_FBT_AUTH_REQ_IND),
 #endif /* WLFBT */
+	BCMEVENT_NAME(WLC_E_AUTHORIZED),
+	BCMEVENT_NAME(WLC_E_PROBREQ_MSG_RX),
+	BCMEVENT_NAME(WLC_E_CSA_START_IND),
+	BCMEVENT_NAME(WLC_E_CSA_DONE_IND),
+	BCMEVENT_NAME(WLC_E_CSA_FAILURE_IND),
 	BCMEVENT_NAME(WLC_E_RMC_EVENT),
+	BCMEVENT_NAME(WLC_E_DPSTA_INTF_IND),
 };
 
 
@@ -195,4 +196,34 @@ const char *bcmevent_get_name(uint event_type)
 	 * otherwise return unknown string.
 	 */
 	return ((event_name) ? event_name : "Unknown Event");
+}
+
+void
+wl_event_to_host_order(wl_event_msg_t * evt)
+{
+	/* Event struct members passed from dongle to host are stored in network
+	* byte order. Convert all members to host-order.
+	*/
+	evt->event_type = ntoh32(evt->event_type);
+	evt->flags = ntoh16(evt->flags);
+	evt->status = ntoh32(evt->status);
+	evt->reason = ntoh32(evt->reason);
+	evt->auth_type = ntoh32(evt->auth_type);
+	evt->datalen = ntoh32(evt->datalen);
+	evt->version = ntoh16(evt->version);
+}
+
+void
+wl_event_to_network_order(wl_event_msg_t * evt)
+{
+	/* Event struct members passed from dongle to host are stored in network
+	* byte order. Convert all members to host-order.
+	*/
+	evt->event_type = hton32(evt->event_type);
+	evt->flags = hton16(evt->flags);
+	evt->status = hton32(evt->status);
+	evt->reason = hton32(evt->reason);
+	evt->auth_type = hton32(evt->auth_type);
+	evt->datalen = hton32(evt->datalen);
+	evt->version = hton16(evt->version);
 }

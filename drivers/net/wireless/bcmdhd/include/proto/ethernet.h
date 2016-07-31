@@ -1,9 +1,12 @@
 /*
  * From FreeBSD 2.2.7: Fundamental constants relating to ethernet.
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: ethernet.h 473238 2014-04-28 19:14:56Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: ethernet.h 518342 2014-12-01 23:21:41Z $
  */
 
 #ifndef _NET_ETHERNET_H_	/* use native BSD ethernet.h when available */
@@ -65,14 +68,10 @@
 #define	ETHER_TYPE_IPV6		0x86dd		/* IPv6 */
 #define	ETHER_TYPE_BRCM		0x886c		/* Broadcom Corp. */
 #define	ETHER_TYPE_802_1X	0x888e		/* 802.1x */
-#ifdef PLC
-#define	ETHER_TYPE_88E1		0x88e1		/* GIGLE */
-#define	ETHER_TYPE_8912		0x8912		/* GIGLE */
-#define ETHER_TYPE_GIGLED	0xffff		/* GIGLE */
-#endif /* PLC */
 #define	ETHER_TYPE_802_1X_PREAUTH 0x88c7	/* 802.1x preauthentication */
 #define ETHER_TYPE_WAI		0x88b4		/* WAI */
 #define ETHER_TYPE_89_0D	0x890d		/* 89-0d frame for TDLS */
+#define ETHER_TYPE_RRB		ETHER_TYPE_89_0D  /* RRB 802.11r 2008 */
 
 #define ETHER_TYPE_PPP_SES	0x8864		/* PPPoE Session */
 

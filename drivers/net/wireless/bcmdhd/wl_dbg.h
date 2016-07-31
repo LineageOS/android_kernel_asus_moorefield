@@ -2,9 +2,12 @@
  * Minimal debug/trace/assert driver definitions for
  * Broadcom 802.11 Networking Adapter.
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: wl_dbg.h 472390 2014-04-23 23:32:01Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: wl_dbg.h 519338 2014-12-05 21:23:30Z $
  */
 
 
@@ -93,12 +96,12 @@ extern int osl_printf(const char *fmt, ...);
 #define WL_MCNX(args)
 #define WL_PROT(args)
 #define WL_PSTA(args)
+#define WL_WFDS(m, b, n)
 #define WL_TRF_MGMT(args)
 #define WL_L2FILTER(args)
 #define WL_MQ(args)
 #define WL_TXBF(args)
 #define WL_P2PO(args)
-#define WL_NET_DETECT(args)
 #define WL_ROAM(args)
 #define WL_WNM(args)
 
@@ -121,7 +124,8 @@ extern int osl_printf(const char *fmt, ...);
 #define WL_WSEC(args)
 #define WL_WSEC_DUMP(args)
 #define WL_PCIE(args)
-#define WL_CHANLOG(w, s, i, j)
+#define WL_TSLOG(w, s, i, j)
+#define WL_FBT(args)
 
 #define WL_ERROR_ON()		(wl_msg_level & WL_ERROR_VAL)
 #define WL_TRACE_ON()		0
@@ -160,8 +164,7 @@ extern int osl_printf(const char *fmt, ...);
 #define WL_L2FILTER_ON()	0
 #define WL_TXBF_ON()		0
 #define WL_P2PO_ON()		0
-#define WL_CHANLOG_ON()		0
-#define WL_NET_DETECT_ON()	0
+#define WL_TSLOG_ON()		0
 #define WL_WNM_ON()		0
 #define WL_PCIE_ON()		0
 
@@ -242,6 +245,7 @@ extern int osl_printf(const char *fmt, ...);
 #define WL_AMPDU(args)
 #define WL_FFPLD(args)
 #define WL_MCHAN(args)
+#define WL_BCNTRIM_DBG(args)
 
 /* Define WLMSG_DFS automatically for WLTEST builds */
 
@@ -277,10 +281,11 @@ extern int osl_printf(const char *fmt, ...);
 #define WL_L2FILTER(args)
 #define WL_MQ(args)
 #define WL_P2PO(args)
+#define WL_AWDL(args)
 #define WL_WNM(args)
 #define WL_TXBF(args)
-#define WL_CHANLOG(w, s, i, j)
-#define WL_NET_DETECT(args)
+#define WL_TSLOG(w, s, i, j)
+#define WL_FBT(args)
 
 #define WL_ERROR_ON()		0
 #define WL_TRACE_ON()		0
@@ -356,8 +361,9 @@ extern int osl_printf(const char *fmt, ...);
 #define WL_L2FILTER_ON()	0
 #define WL_MQ_ON()		0
 #define WL_P2PO_ON()		0
+#define WL_AWDL_ON()		0
 #define WL_TXBF_ON()            0
-#define WL_CHANLOG_ON()		0
+#define WL_TSLOG_ON()		0
 
 #define WL_AMPDU_UPDN(args)
 #define WL_AMPDU_RX(args)
@@ -385,6 +391,8 @@ extern int osl_printf(const char *fmt, ...);
 #endif
 #define WL_PCIE(args)		do {if (wl_msg_level2 & WL_PCIE_VAL) WL_PRINT(args);} while (0)
 #define WL_PCIE_ON()		(wl_msg_level2 & WL_PCIE_VAL)
+#define WL_PFN(args)      do {if (wl_msg_level & WL_PFN_VAL) WL_PRINT(args);} while (0)
+#define WL_PFN_ON()		(wl_msg_level & WL_PFN_VAL)
 #endif 
 
 extern uint32 wl_msg_level;

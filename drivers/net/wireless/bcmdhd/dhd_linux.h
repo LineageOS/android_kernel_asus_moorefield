@@ -1,7 +1,10 @@
 /*
  * DHD Linux header file (dhd_linux exports for cfg80211 and other components)
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
+ *
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
  *
  * $Id: dhd_linux.h 399301 2013-04-29 21:41:52Z $
  */
@@ -30,6 +33,25 @@
 #include <linux/earlysuspend.h>
 #endif /* defined(CONFIG_HAS_EARLYSUSPEND) && defined(DHD_USE_EARLYSUSPEND) */
 
+#if defined(CONFIG_WIFI_CONTROL_FUNC)
+#include <linux/wlan_plat.h>
+#endif
+
+#if !defined(CONFIG_WIFI_CONTROL_FUNC)
+#define WLAN_PLAT_NODFS_FLAG    0x01
+struct wifi_platform_data {
+	int (*set_power)(int val);
+	int (*set_reset)(int val);
+	int (*set_carddetect)(int val);
+	void *(*mem_prealloc)(int section, unsigned long size);
+	int (*get_mac_addr)(unsigned char *buf);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 58)) || defined(CUSTOM_COUNTRY_CODE)
+	void *(*get_country_code)(char *ccode, u32 flags);
+#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 58)) || defined (CUSTOM_COUNTRY_CODE) */
+	void *(*get_country_code)(char *ccode);
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 58)) */
+ };
+#endif /* CONFIG_WIFI_CONTROL_FUNC */
 #define DHD_REGISTRATION_TIMEOUT  12000  /* msec : allowed time to finished dhd registration */
 
 typedef struct wifi_adapter_info {
@@ -51,6 +73,7 @@ typedef struct bcmdhd_wifi_platdata {
 
 /** Per STA params. A list of dhd_sta objects are managed in dhd_if */
 typedef struct dhd_sta {
+	cumm_ctr_t cumm_ctr;    /* cummulative queue length of child flowrings */
 	uint16 flowid[NUMPRIO]; /* allocated flow ring ids (by priority) */
 	void * ifp;             /* associated dhd_if */
 	struct ether_addr ea;   /* stations ethernet mac address */
@@ -68,7 +91,12 @@ int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long
 int wifi_platform_bus_enumerate(wifi_adapter_info_t *adapter, bool device_present);
 int wifi_platform_get_irq_number(wifi_adapter_info_t *adapter, unsigned long *irq_flags_ptr);
 int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf);
+#ifdef CUSTOM_COUNTRY_CODE
+void *wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode,
+   u32 flags);
+#else
 void *wifi_platform_get_country_code(wifi_adapter_info_t *adapter, char *ccode);
+#endif /* CUSTOM_COUNTRY_CODE */
 void* wifi_platform_prealloc(wifi_adapter_info_t *adapter, int section, unsigned long size);
 void* wifi_platform_get_prealloc_func_ptr(wifi_adapter_info_t *adapter);
 

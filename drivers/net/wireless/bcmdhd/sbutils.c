@@ -2,9 +2,12 @@
  * Misc utility routines for accessing chip-specific features
  * of the SiliconBackplane-based Broadcom chips.
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: sbutils.c 467150 2014-04-02 17:30:43Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: sbutils.c 514727 2014-11-12 03:02:48Z $
  */
 
 #include <bcm_cfg.h>

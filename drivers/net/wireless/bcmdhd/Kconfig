@@ -22,7 +22,12 @@ config BCM4354
 config BCM4339
     bool "Broadcom combo Wi-Fi 2.4G/5G chipset BCM4339"
     depends on BCMDHD
-    default y
+    ---help---
+      Choose wifi chipset for ZE project
+
+config BCM43455
+    bool "Broadcom combo Wi-Fi 2.4G/5G chipset BCM43455"
+    depends on BCMDHD
     ---help---
       Choose wifi chipset for ZE project
 

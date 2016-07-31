@@ -1,9 +1,12 @@
 /*
  * BCM43XX Sonics SiliconBackplane PCMCIA core hardware definitions.
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: sbpcmcia.h 446298 2014-01-03 11:30:17Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: sbpcmcia.h 521344 2014-12-17 10:03:55Z $
  */
 
 #ifndef	_SBPCMCIA_H
@@ -317,10 +320,11 @@
 #define HNBU_USBSSPHY_SLEEP1    0x71    /* 2 byte USB SSPHY sleep */
 #define HNBU_USBSSPHY_SLEEP2    0x72    /* 2 byte USB SSPHY sleep */
 #define HNBU_USBSSPHY_SLEEP3    0x73    /* 2 byte USB SSPHY sleep */
-#define HNBU_USBSSPHY_MDIO		0x74	/* USB SSPHY INIT regs setting */
-#define HNBU_USB30PHY_NOSS		0x75	/* USB30 NO Super Speed */
-#define HNBU_USB30PHY_U1U2		0x76	/* USB30 PHY U1U2 Enable */
-#define HNBU_USB30PHY_REGS		0x77	/* USB30 PHY REGs update */
+#define HNBU_USBSSPHY_MDIO      0x74    /* USB SSPHY INIT regs setting */
+#define HNBU_USB30PHY_NOSS      0x75    /* USB30 NO Super Speed */
+#define HNBU_USB30PHY_U1U2      0x76    /* USB30 PHY U1U2 Enable */
+#define HNBU_USB30PHY_REGS      0x77    /* USB30 PHY REGs update */
+#define HNBU_GPIO_PULL_DOWN     0x78    /* 4 byte GPIO pull down mask */
 
 #define HNBU_SROM3SWRGN		0x80	/* 78 bytes; srom rev 3 s/w region without crc8
 					 * plus extra info appended.
@@ -338,6 +342,7 @@
 
 #define HNBU_MCS5Gx1PO		0x8c
 #define HNBU_ACPPR_SB8080_PO		0x8d
+#define HNBU_TXBFRPCALS			0x8f	/* phy txbf rpcalvars */
 
 
 #endif /* !defined(LINUX_POSTMOGRIFY_REMOVAL) */

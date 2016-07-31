@@ -8,9 +8,18 @@
 # 2. For select components, as listed in compvers.sh
 #    it generates component version files
 #
-# Copyright 2005, Broadcom, Inc.
+# Copyright (C) 2015, Broadcom Corporation
+# All Rights Reserved.
+# 
+# This is UNPUBLISHED PROPRIETARY SOURCE CODE of Broadcom Corporation;
+# the contents of this file may not be disclosed to third parties, copied
+# or duplicated in any form, in whole or in part, without the prior
+# written permission of Broadcom Corporation.
 #
-# $Id: Makefile 347587 2012-07-27 09:13:31Z $
+#
+# <<Broadcom-WL-IPTag/Proprietary:>>
+#
+# $Id: Makefile 514727 2014-11-12 03:02:48Z $
 #
 
 export SRCBASE:=..

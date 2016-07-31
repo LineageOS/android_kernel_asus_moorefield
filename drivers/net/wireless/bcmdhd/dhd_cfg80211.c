@@ -1,7 +1,10 @@
 /*
  * Linux cfg80211 driver - Dongle Host Driver (DHD) related
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
+ *
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
  *
  * $Id: wl_cfg80211.c,v 1.1.4.1.2.14 2011/02/09 01:40:07 Exp $
  */
@@ -106,9 +109,9 @@ s32 dhd_cfg80211_clean_p2p_info(struct bcm_cfg80211 *cfg)
 }
 
 struct net_device* wl_cfg80211_allocate_if(struct bcm_cfg80211 *cfg, int ifidx, char *name,
-	uint8 *mac, uint8 bssidx)
+	uint8 *mac, uint8 bssidx, char *dngl_name)
 {
-	return dhd_allocate_if(cfg->pub, ifidx, name, mac, bssidx, FALSE);
+	return dhd_allocate_if(cfg->pub, ifidx, name, mac, bssidx, FALSE, dngl_name);
 }
 
 int wl_cfg80211_register_if(struct bcm_cfg80211 *cfg, int ifidx, struct net_device* ndev)
@@ -198,4 +201,50 @@ default_conf_out:
 
 	return err;
 
+}
+
+int dhd_cfgvendor_priv_string_handler(struct bcm_cfg80211 *cfg, struct wireless_dev *wdev,
+	const struct bcm_nlmsg_hdr *nlioc, void *buf)
+{
+	struct net_device *ndev = NULL;
+	dhd_pub_t *dhd;
+	dhd_ioctl_t ioc = { 0 };
+	int ret = 0;
+	int8 index;
+
+	WL_TRACE(("entry: cmd = %d\n", nlioc->cmd));
+
+	dhd = cfg->pub;
+	DHD_OS_WAKE_LOCK(dhd);
+
+	/* send to dongle only if we are not waiting for reload already */
+	if (dhd->hang_was_sent) {
+		WL_ERR(("HANG was sent up earlier\n"));
+		DHD_OS_WAKE_LOCK_CTRL_TIMEOUT_ENABLE(dhd, DHD_EVENT_TIMEOUT_MS);
+		DHD_OS_WAKE_UNLOCK(dhd);
+		return OSL_ERROR(BCME_DONGLE_DOWN);
+	}
+
+	ndev = wdev_to_wlc_ndev(wdev, cfg);
+	index = dhd_net2idx(dhd->info, ndev);
+	if (index == DHD_BAD_IF) {
+		WL_ERR(("Bad ifidx from wdev:%p\n", wdev));
+		ret = BCME_ERROR;
+		goto done;
+	}
+
+	ioc.cmd = nlioc->cmd;
+	ioc.len = nlioc->len;
+	ioc.set = nlioc->set;
+	ioc.driver = nlioc->magic;
+	ret = dhd_ioctl_process(dhd, index, &ioc, buf);
+	if (ret) {
+		WL_TRACE(("dhd_ioctl_process return err %d\n", ret));
+		ret = OSL_ERROR(ret);
+		goto done;
+	}
+
+done:
+	DHD_OS_WAKE_UNLOCK(dhd);
+	return ret;
 }

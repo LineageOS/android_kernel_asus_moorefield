@@ -1,9 +1,12 @@
 /*
  * Broadcom Dongle Host Driver (DHD), Linux monitor network interface
  *
- * $Copyright Open Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: wl_linux_mon.c 467328 2014-04-03 01:23:40Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: wl_linux_mon.c 514727 2014-11-12 03:02:48Z $
  */
 
 #include <osl.h>

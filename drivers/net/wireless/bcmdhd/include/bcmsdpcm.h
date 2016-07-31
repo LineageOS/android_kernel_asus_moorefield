@@ -2,9 +2,12 @@
  * Broadcom SDIO/PCMCIA
  * Software-specific definitions shared between device and host side
  *
- * $Copyright Open 2005 Broadcom Corporation$
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: bcmsdpcm.h 472405 2014-04-23 23:46:55Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmsdpcm.h 514727 2014-11-12 03:02:48Z $
  */
 
 #ifndef	_bcmsdpcm_h_
