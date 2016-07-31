@@ -797,6 +797,8 @@ int ia_handle_frame(struct psh_ia_priv *psh_ia_data, void *dbuf, int size)
 	case RESP_DEBUG_MSG:
 		ia_circ_dbg_put_data(psh_ia_data,
 				resp->buf, resp->data_len);
+		if (resp->data_len > 0 && resp->buf)
+			psh_warn("%.*s", resp->data_len, resp->buf);
 		return 0;
 	case RESP_GET_STATUS:
 		sinfo = (struct snr_info *)resp->buf;

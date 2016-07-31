@@ -57,6 +57,15 @@
 #define CAMFLASH_STATE_NORMAL	0
 #define CAMFLASH_STATE_CRITICAL	3
 
+#define PMIC_ID_ADDR		0x00
+#define PMIC_CHIP_ID_SC_B0_VAL	0x08
+
+/* The registers listed below no longer exist for shadycove PMIC-BO */
+#define PMIC_B0_BCU_NOP_ADDRx42		( 6 )	/* VFLEXSRC_BEH_REG  - 0x5E42	*/
+#define PMIC_B0_BCU_NOP_ADDRx43		( 7 )	/* VFLEXDIS_BEH_REG  - 0x5E43	*/
+#define PMIC_B0_BCU_NOP_ADDRx45		( 9 )	/* CAMFLTORCH_BEH_REG - 0x5E45	*/
+#define PMIC_B0_BCU_NOP_ADDRX46		( 10 )	/* CAMFLDIS_BEH_REG  - 0x5E46	*/
+
 /* 'enum' of BCU events */
 enum bcu_events { VWARN1, VWARN2, VCRIT, GSMPULSE, TXPWRTH, UNKNOWN, __COUNT };
 
@@ -161,6 +170,7 @@ static int program_bcu(void *ocd_smip_addr)
 {
 	int ret, i;
 	u8 *smip_data;
+	uint8_t pmic_id;
 
 	if (!ocd_smip_addr)
 		return -ENXIO;
@@ -168,7 +178,19 @@ static int program_bcu(void *ocd_smip_addr)
 	smip_data = (u8 *)ocd_smip_addr;
 	mutex_lock(&ocd_update_lock);
 
+	/* Get PMIC ID */
+	ret = intel_scu_ipc_ioread8(PMIC_ID_ADDR, &pmic_id);
+	if (ret) {
+		pr_err("Error reading PMIC ID register\n");
+		goto ipc_fail;
+	}
+
+	/* Skipping write to registers for shadycove B0	*/
 	for (i = 0; i < NUM_SMIP_BYTES-1; i++, smip_data++) {
+		if ( (i == PMIC_B0_BCU_NOP_ADDRx42 || i == PMIC_B0_BCU_NOP_ADDRx43 ||
+			i == PMIC_B0_BCU_NOP_ADDRx45 || i == PMIC_B0_BCU_NOP_ADDRX46 )
+			&& (pmic_id == PMIC_CHIP_ID_SC_B0_VAL) )
+			continue;
 		ret = intel_scu_ipc_iowrite8(VWARN1_CFG + i, *smip_data);
 		if (ret)
 			goto ipc_fail;

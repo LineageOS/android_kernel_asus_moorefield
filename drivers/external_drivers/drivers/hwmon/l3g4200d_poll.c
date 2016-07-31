@@ -39,6 +39,8 @@
 #include <linux/jiffies.h>
 #include <linux/input/l3g4200d_poll.h>
 #include <linux/delay.h>
+#include <linux/hrtimer.h>
+#include <linux/kthread.h>
 
 /* l3g4200d gyroscope registers */
 #define WHO_AM_I        0x0F
@@ -82,8 +84,6 @@
 
 #define MAX_POLL_DELAY 500
 
-#define DEBUG 1
-
 /** Registers Contents */
 #define WHOAMI_L3G4200D		0x00D3	/* Expected content for WAI register*/
 #define WHOAMI_L3GD20		0x00D4  /* WAI register for l3gd20 */
@@ -115,7 +115,10 @@ struct l3g4200d_data {
 
 	struct input_dev *input_dev;
 	u8 resume_state[RESUME_ENTRIES];
-	struct delayed_work work;
+	struct hrtimer work_timer;
+	struct completion report_complete;
+	struct task_struct *thread;
+	bool hrtimer_running;
 	int need_resume;
 	int hw_init_delay;
 };
@@ -196,9 +199,12 @@ static int l3g4200d_hw_init(struct l3g4200d_data *gyro)
 
 static void l3g4200d_queue_delayed_work(struct l3g4200d_data *gyro, int more)
 {
-	unsigned long delay =
-		msecs_to_jiffies(gyro->pdata->poll_interval + more);
-	schedule_delayed_work(&gyro->work, delay);
+	ktime_t poll_delay;
+
+	poll_delay = ktime_set(0, (gyro->pdata->poll_interval + more) * NSEC_PER_MSEC);
+
+	hrtimer_start(&gyro->work_timer, poll_delay, HRTIMER_MODE_REL);
+	gyro->hrtimer_running = true;
 }
 
 static void l3g4200d_report_data(struct l3g4200d_data *gyro)
@@ -250,24 +256,38 @@ static int l3g4200d_enabled(struct l3g4200d_data *gyro)
 	return gyro->resume_state[RES_CTRL_REG1] & PM_ON;
 }
 
-static void l3g4200d_poll_work(struct work_struct *work)
+static int report_event(void *data)
 {
+	struct l3g4200d_data *gyro = data;
+	while(1)
+	{
+		/* wait for report event */
+		wait_for_completion(&gyro->report_complete);
 
+		mutex_lock(&gyro->lock);
+		if (!l3g4200d_enabled(gyro)) {
+			mutex_unlock(&gyro->lock);
+			continue;
+		}
+		l3g4200d_report_data(gyro);
+		mutex_unlock(&gyro->lock);
+        }
+
+	return 0;
+}
+
+static enum hrtimer_restart l3g4200d_poll_work(struct hrtimer *timer)
+{
 	struct l3g4200d_data *gyro =
-		container_of(work, struct l3g4200d_data, work.work);
+		container_of(timer, struct l3g4200d_data, work_timer);
 
-	mutex_lock(&gyro->lock);
-
-	/* there is the possibility that the device is already disabled
-	 * before this delayed work is executed.
-	 */
 	if (!l3g4200d_enabled(gyro))
-		goto leave;
+		return HRTIMER_NORESTART;
 
-	l3g4200d_report_data(gyro);
+	complete(&gyro->report_complete);
 	l3g4200d_queue_delayed_work(gyro, 0);
-leave:
-	mutex_unlock(&gyro->lock);
+
+	return HRTIMER_NORESTART;
 }
 
 static int l3g4200d_enable(struct l3g4200d_data *gyro)
@@ -306,7 +326,11 @@ static int l3g4200d_disable(struct l3g4200d_data *gyro)
 		return err;
 	}
 
-	cancel_delayed_work(&gyro->work);
+	if(gyro->hrtimer_running) {
+		gyro->hrtimer_running = false;
+		hrtimer_cancel(&gyro->work_timer);
+	}
+
 	return 0;
 }
 
@@ -723,8 +747,17 @@ static int l3g4200d_probe(struct i2c_client *client,
 		goto err_clean_input;
 
 	mutex_init(&gyro->lock);
-	INIT_DELAYED_WORK(&gyro->work, l3g4200d_poll_work);
+	hrtimer_init(&gyro->work_timer, CLOCK_MONOTONIC,HRTIMER_MODE_REL);
+	gyro->work_timer.function = l3g4200d_poll_work;
+	gyro->hrtimer_running = false;
 
+	init_completion(&gyro->report_complete);
+	gyro->thread = kthread_run(report_event, gyro, "gyro_report_event");
+	if (IS_ERR(gyro->thread)) {
+		dev_err(&client->dev,
+			"unable to create report_event thread\n");
+		goto err_clean_input;
+	}
 	dev_info(&client->dev, "probed.\n");
 	return 0;
 
@@ -751,11 +784,7 @@ static int l3g4200d_remove(struct i2c_client *client)
 	l3g4200d_disable(gyro);
 	mutex_unlock(&gyro->lock);
 
-	/* there may be still a delayed work in execution, we must wait for
-	 * its completion before we could reclaim resources.
-	 */
-	cancel_delayed_work_sync(&gyro->work);
-
+	kthread_stop(gyro->thread);
 	mutex_destroy(&gyro->lock);
 	input_unregister_device(gyro->input_dev);
 	kfree(gyro->pdata);

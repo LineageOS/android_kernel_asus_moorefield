@@ -44,6 +44,7 @@
 #include <linux/acpi_gpio.h>
 #include <linux/pm_runtime.h>
 #include <asm/intel_vlv2.h>
+#include <linux/workqueue.h>
 
 #include "psh_ia_common.h"
 #define GPIO_PSH_INT ((int)133)
@@ -59,6 +60,8 @@ struct psh_ext_if {
 	int gpio_psh_int;
 
 	int irq_disabled;
+	struct work_struct work;
+	struct workqueue_struct *wq;
 };
 
 int read_psh_data(struct psh_ia_priv *ia_data)
@@ -81,6 +84,7 @@ int read_psh_data(struct psh_ia_priv *ia_data)
 		}
 	};
 	int sequent_dummy = 0;
+	static int loop = 0;
 
 	/* We may need to zero all the buffer */
 
@@ -106,6 +110,7 @@ int read_psh_data(struct psh_ia_priv *ia_data)
 		if (ret != 1) {
 			dev_err(&psh_if_info->pshc->dev, "Read frame header error!"
 					" ret=%d\n", ret);
+			loop++;
 			break;
 		}
 
@@ -162,6 +167,11 @@ int read_psh_data(struct psh_ia_priv *ia_data)
 
 	if (cur_read)
 		sysfs_notify(&psh_if_info->pshc->dev.kobj, NULL, "data_size");
+
+	if (loop > 8) {
+		queue_work(psh_if_info->wq, &psh_if_info->work);
+		loop = 0;
+        }
 
 	return ret;
 }
@@ -318,6 +328,18 @@ static const struct dev_pm_ops psh_byt_pm_ops = {
 			psh_byt_runtime_resume, NULL)
 };
 
+static void psh_work_func(struct work_struct *work)
+{
+	struct psh_ext_if *psh_if_info =
+		container_of(work, struct psh_ext_if, work);
+
+	if (psh_if_info->irq_disabled == 0) {
+	        disable_irq(psh_if_info->pshc->irq);
+		psh_if_info->irq_disabled = 1;
+		dev_err(&psh_if_info->pshc->dev, "disable psh irq\n");
+	}
+}
+
 /* FIXME: it will be a platform device */
 static int psh_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
@@ -402,6 +424,14 @@ static int psh_probe(struct i2c_client *client,
 
 	psh_if_info->irq_disabled = 1;
 
+	psh_if_info->wq = create_singlethread_workqueue("psh_work");
+	if (!psh_if_info->wq) {
+		dev_err(&client->dev, "fail to create workqueue\n");
+		goto wq_err;
+	}
+
+	INIT_WORK(&psh_if_info->work, psh_work_func);
+
 	pm_runtime_set_active(&client->dev);
 	pm_runtime_use_autosuspend(&client->dev);
 	pm_runtime_set_autosuspend_delay(&client->dev, 0);
@@ -409,6 +439,8 @@ static int psh_probe(struct i2c_client *client,
 
 	return 0;
 
+wq_err:
+	free_irq(client->irq, psh_if_info->pshc);
 irq_err:
 	hwmon_device_unregister(psh_if_info->hwmon_dev);
 hwmon_err:
@@ -428,6 +460,8 @@ static int psh_remove(struct i2c_client *client)
 
 	pm_runtime_get_sync(&client->dev);
 	pm_runtime_disable(&client->dev);
+	if (psh_if_info->wq)
+		destroy_workqueue(psh_if_info->wq);
 	free_irq(client->irq, psh_if_info->pshc);
 	gpio_unexport(psh_if_info->gpio_psh_rst);
 	gpio_unexport(psh_if_info->gpio_psh_ctl);

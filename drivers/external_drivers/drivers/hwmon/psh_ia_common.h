@@ -70,7 +70,7 @@ enum resp_type {
 	RESP_TRACE_MSG,
 };
 
-#define CMD_PARAM_MAX_SIZE ((u16)60)
+#define CMD_PARAM_MAX_SIZE ((u16)128)
 struct ia_cmd {
 	u8 tran_id;
 	u8 cmd_id;

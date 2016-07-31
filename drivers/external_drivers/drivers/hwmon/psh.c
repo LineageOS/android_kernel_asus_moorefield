@@ -53,7 +53,6 @@
 #include <asm/segment.h>
 #include <asm/uaccess.h>
 #include <linux/buffer_head.h>
-
 #ifdef VPROG2_SENSOR
 #include <asm/intel_scu_ipcutil.h>
 #endif
@@ -120,7 +119,7 @@ long getProjectId(void)
     }
 
     ret = strict_strtol(buffer,10,&project_id);
-    psh_err("The project id is = 0x%lx\n", project_id);
+    psh_err("The project id is = 0x%x\n", project_id);
 	
     return project_id;
 
@@ -297,11 +296,18 @@ int do_setup_ddr(struct device *dev)
 		return 0;
 
 #ifdef VPROG2_SENSOR
-	intel_scu_ipc_msic_vprog2(1);
-	msleep(500);
+	if (getProjectId() != 0x1c && getProjectId() != 0x1d)
+	{
+		intel_scu_ipc_msic_vprog2(1);
+		msleep(500);
+	}
 #endif
 
-	if (getProjectId() == 0x1B)
+	if (getProjectId() == 0x17)
+		snprintf(fname, 40, "psh.bin.ze550ml");
+	else if (getProjectId() == 0x1F)
+		snprintf(fname, 40, "psh.bin.ze551ml");
+	else if (getProjectId() == 0x1B)
 		snprintf(fname, 40, "psh.bin.zx550ml");
 	else
 		snprintf(fname, 40, "psh.bin");
@@ -333,8 +339,10 @@ again:
 				fw_entry->size);
 			*(uintptr_t *)(&cmd.param) = imr2_phy;
 			cmd.tran_id = 0x1;
-			if (process_send_cmd(ia_data, PSH2IA_CHANNEL3, &cmd, 7))
+			if (process_send_cmd(ia_data, PSH2IA_CHANNEL3, &cmd, 7)) {
+				release_firmware(fw_entry);
 				return -1;
+			}
 			ia_data->load_in_progress = 1;
 			wait_for_completion_timeout(&ia_data->cmd_load_comp,
 					3 * HZ);
