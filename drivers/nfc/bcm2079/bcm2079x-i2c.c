@@ -50,7 +50,11 @@
 #define PACKET_TYPE_HCIEV	(4)
 #define MAX_PACKET_SIZE		(PACKET_HEADER_SIZE_NCI + 255)
 
+#if defined(CONFIG_ASUS_FACTORY_MODE) && CONFIG_ASUS_FACTORY_MODE
+static int asus_nfc_test = 1;
+#else
 static int asus_nfc_test = 0;
+#endif
 static int asus_nfc_charger_mode= 0;
 
 extern int Read_PCB_ID(void);
@@ -201,6 +205,13 @@ static ssize_t bcm2079x_dev_read(struct file *filp, char __user *buf,
 			"failed to copy to user space, total = %d\n", total);
 		total = -EFAULT;
 	}
+        //int i;
+        //for (i=0; i<total; i+=8) {
+        //        pr_info("buf[%02X]: %02X %02X %02X %02X %02X %02X %02X %02X\n", i,
+        //                        tmp[i], tmp[i+1], tmp[i+2], tmp[i+3],
+        //                        tmp[i+4], tmp[i+5], tmp[i+6], tmp[i+7]
+        //               );
+        //}
 
 	return total;
 }
@@ -211,6 +222,9 @@ static ssize_t bcm2079x_dev_write(struct file *filp, const char __user *buf,
 	struct bcm2079x_dev *bcm2079x_dev = filp->private_data;
 	char tmp[MAX_BUFFER_SIZE];
 	int ret;
+        int retry=3;
+
+        pr_info("enter %s\n", __func__);
 
 	if (count > MAX_BUFFER_SIZE) {
 		dev_err(&bcm2079x_dev->client->dev, "out of memory\n");
@@ -223,13 +237,21 @@ static ssize_t bcm2079x_dev_write(struct file *filp, const char __user *buf,
 		return -EFAULT;
 	}
 
+        //int i,j;
+        //for (i=0; i<count; i+=8) {
+        //        pr_info("buf[%02X]: %02X %02X %02X %02X %02X %02X %02X %02X\n", i,
+        //                        tmp[i], tmp[i+1], tmp[i+2], tmp[i+3],
+        //                        tmp[i+4], tmp[i+5], tmp[i+6], tmp[i+7]
+        //        );
+        //}
+
 	mutex_lock(&bcm2079x_dev->read_mutex);
 	/* Write data */
 
-	ret = i2c_master_send(bcm2079x_dev->client, tmp, count);
+        ret = i2c_master_send(bcm2079x_dev->client, tmp, count);
 	if (ret != count) {
 		dev_err(&bcm2079x_dev->client->dev,
-			"failed to write %d\n", ret);
+			"failed to write %d != %d\n", ret, count);
 		ret = -EIO;
 	}
 	mutex_unlock(&bcm2079x_dev->read_mutex);
@@ -296,6 +318,7 @@ static const struct file_operations bcm2079x_dev_fops = {
 	.read = bcm2079x_dev_read,
 	.write = bcm2079x_dev_write,
 	.open = bcm2079x_dev_open,
+        .unlocked_ioctl = bcm2079x_dev_unlocked_ioctl,
 	.compat_ioctl = bcm2079x_dev_unlocked_ioctl
 };
 
@@ -486,6 +509,7 @@ static int __init bcm2079x_dev_init(void)
 
         pr_info("enter %s\n", __func__);
 
+        /* no eSE sku, comment it... 
         static struct file_operations bcm2079x_info_fop = {
                 .read = bcm2079x_info_read,
                 //.write = asus_battery_info_proc_write,
@@ -494,6 +518,7 @@ static int __init bcm2079x_dev_init(void)
         if(!ret) {
                 pr_err("create /proc/nfc_ese_support fail\n");
         }
+        */
 
         if (asus_nfc_charger_mode) {
                 pr_info("Charger mode deteted.... skip initiallize");
