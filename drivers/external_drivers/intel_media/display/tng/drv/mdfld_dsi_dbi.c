@@ -1044,10 +1044,6 @@ void mdfld_generic_dsi_dbi_dpms(struct drm_encoder *encoder, int mode)
 	struct mdfld_dsi_config *dsi_config;
 	struct drm_psb_private *dev_priv;
 	struct panel_funcs *p_funcs;
-#ifdef CONFIG_BACKLIGHT_CLASS_DEVICE
-	struct mdfld_dsi_hw_context *ctx;
-	struct backlight_device bd;
-#endif
 
 	dsi_encoder = MDFLD_DSI_ENCODER(encoder);
 	dsi_config = mdfld_dsi_encoder_get_config(dsi_encoder);
@@ -1073,20 +1069,7 @@ void mdfld_generic_dsi_dbi_dpms(struct drm_encoder *encoder, int mode)
 
 		DCAttachPipe(dsi_config->pipe);
 		DC_MRFLD_onPowerOn(dsi_config->pipe);
-
-#ifdef CONFIG_BACKLIGHT_CLASS_DEVICE
-		ctx = &dsi_config->dsi_hw_context;
-		bd.props.brightness = ctx->lastbrightnesslevel;
-		psb_set_brightness(&bd);
-#endif
 	} else if (mode == DRM_MODE_DPMS_STANDBY) {
-#ifdef CONFIG_BACKLIGHT_CLASS_DEVICE
-		ctx = &dsi_config->dsi_hw_context;
-		ctx->lastbrightnesslevel = psb_get_brightness(&bd);
-		bd.props.brightness = 0;
-		psb_set_brightness(&bd);
-#endif
-
 		/* Make the pending flip request as completed. */
 		DCUnAttachPipe(dsi_config->pipe);
 		DC_MRFLD_onPowerOff(dsi_config->pipe);
