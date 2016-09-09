@@ -547,7 +547,7 @@ int key_reject_and_link(struct key *key,
 	awaken = 0;
 	ret = -EBUSY;
 
-	if (keyring)
+	if (keyring && link_ret == 0)
 		link_ret = __key_link_begin(keyring, key->type,
 					    key->description, &prealloc);
 
