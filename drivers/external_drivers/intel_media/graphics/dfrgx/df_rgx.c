@@ -763,11 +763,11 @@ static int df_rgx_busfreq_probe(struct platform_device *pdev)
 		df->max_freq = DFRGX_FREQ_320_MHZ;
 	}
 	if (df_rgx_is_max_fuse_set()) {
-		df->min_freq = DFRGX_FREQ_457_MHZ;
+		df->min_freq = DFRGX_FREQ_200_MHZ;
 		df->max_freq = DFRGX_FREQ_640_MHZ;
 	}
 	else {
-		df->min_freq = DFRGX_FREQ_457_MHZ;
+		df->min_freq = DFRGX_FREQ_200_MHZ;
 		df->max_freq = DFRGX_FREQ_533_MHZ;
 	}
 	DFRGX_DPF(DFRGX_DEBUG_HIGH, "%s: dev_id = 0x%x, min_freq = %lu, max_freq = %lu\n",
@@ -781,7 +781,7 @@ static int df_rgx_busfreq_probe(struct platform_device *pdev)
 	else
 		bfdata->gpudata[0].freq_limit = DFRGX_FREQ_533_MHZ;
 	bfdata->gpudata[1].freq_limit = DFRGX_FREQ_457_MHZ;
-	bfdata->gpudata[2].freq_limit = DFRGX_FREQ_200_MHZ;
+	bfdata->gpudata[2].freq_limit = DFRGX_FREQ_266_MHZ;
 	bfdata->gpudata[3].freq_limit = DFRGX_FREQ_200_MHZ;
 
 
