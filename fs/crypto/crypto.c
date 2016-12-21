@@ -127,11 +127,11 @@ struct fscrypt_ctx *fscrypt_get_ctx(struct inode *inode)
 EXPORT_SYMBOL(fscrypt_get_ctx);
 
 /**
- * fscrypt_complete() - The completion callback for page encryption
- * @req: The asynchronous encryption request context
- * @res: The result of the encryption operation
+ * page_crypt_complete() - completion callback for page crypto
+ * @req: The asynchronous cipher request context
+ * @res: The result of the cipher operation
  */
-static void fscrypt_complete(struct crypto_async_request *req, int res)
+static void page_crypt_complete(struct crypto_async_request *req, int res)
 {
 	struct fscrypt_completion_result *ecr = req->data;
 
@@ -168,7 +168,7 @@ static int do_page_crypto(struct inode *inode,
 
 	ablkcipher_request_set_callback(
 		req, CRYPTO_TFM_REQ_MAY_BACKLOG | CRYPTO_TFM_REQ_MAY_SLEEP,
-		fscrypt_complete, &ecr);
+		page_crypt_complete, &ecr);
 
 	BUILD_BUG_ON(FS_XTS_TWEAK_SIZE < sizeof(index));
 	memcpy(xts_tweak, &index, sizeof(index));
@@ -176,10 +176,10 @@ static int do_page_crypto(struct inode *inode,
 			FS_XTS_TWEAK_SIZE - sizeof(index));
 
 	sg_init_table(&dst, 1);
-	sg_set_page(&dst, dest_page, PAGE_CACHE_SIZE, 0);
+	sg_set_page(&dst, dest_page, PAGE_SIZE, 0);
 	sg_init_table(&src, 1);
-	sg_set_page(&src, src_page, PAGE_CACHE_SIZE, 0);
-	ablkcipher_request_set_crypt(req, &src, &dst, PAGE_CACHE_SIZE,
+	sg_set_page(&src, src_page, PAGE_SIZE, 0);
+	ablkcipher_request_set_crypt(req, &src, &dst, PAGE_SIZE,
 					xts_tweak);
 	if (rw == FS_DECRYPT)
 		res = crypto_ablkcipher_decrypt(req);
@@ -288,7 +288,7 @@ int fscrypt_zeroout_range(struct inode *inode, pgoff_t lblk,
 	struct bio *bio;
 	int ret, err = 0;
 
-	BUG_ON(inode->i_sb->s_blocksize != PAGE_CACHE_SIZE);
+	BUG_ON(inode->i_sb->s_blocksize != PAGE_SIZE);
 
 	ctx = fscrypt_get_ctx(inode);
 	if (IS_ERR(ctx))
