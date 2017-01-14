@@ -281,15 +281,16 @@ void mdfld_dsi_brightness_control(struct drm_device *dev, int pipe, int level)
 		return;
 	}
 
+	mutex_lock(&dsi_config->context_lock);
 	power_island = pipe_to_island(dsi_config->pipe);
 
 	if (power_island & (OSPM_DISPLAY_A | OSPM_DISPLAY_C))
 		power_island |= OSPM_DISPLAY_MIO;
 
-	if (!power_island_get(power_island))
+	if (!power_island_get(power_island)) {
+		mutex_unlock(&dsi_config->context_lock);
 		return;
-
-	mutex_lock(&dsi_config->context_lock);
+	}
 
 	mdfld_dsi_dsr_forbid_locked(dsi_config);
 

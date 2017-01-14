@@ -184,7 +184,6 @@ static struct osnib_wake_src osnib_wake_srcs[] = {
 	{ WAKE_PMIC_WATCHDOG_RESET, "pmic watchdog reset" },
 	{ WAKE_PLATFORM_WATCHDOG_RESET, "HWWDT reset platform" },
 	{ WAKE_SC_WATCHDOG_RESET, "HWWDT reset SC" },
-	{ WAKE_KERNEL_PANIC, "kernel panic" },
 };
 
 
@@ -1165,15 +1164,9 @@ int intel_scu_ipc_read_osnib_extend(u8 *data, int len, int offset)
 		/* double words of the OSNIB osnib_size bytes will be written.*/
 		/* So the mask is coded on 4 bytes.                           */
 		sptr_dw_mask = 0xFFFFFFFF;
-		if (!oops_in_progress)
-			rpmsg_send_raw_command(ipcutil_instance,
-				RP_WRITE_OSNIB,
-				0, NULL, NULL, 0, 0, sptr_dw_mask, 0);
-		else
-			intel_scu_ipc_raw_cmd(RP_WRITE_OSNIB, 0,
-					NULL, 0, NULL, 0,
-					0, sptr_dw_mask);
-
+		rpmsg_send_raw_command(ipcutil_instance,
+			RP_WRITE_OSNIB,
+			0, NULL, NULL, 0, 0, sptr_dw_mask, 0);
 		iounmap(osnibw_addr);
 	}
 
@@ -1204,8 +1197,7 @@ int intel_scu_ipc_write_osnib_extend(u8 *data, int len, int offset)
 	void __iomem *oshob_addr, *osnibw_addr, *osnibr_addr;
 	u32 sptr_dw_mask;
 
-	if (!oops_in_progress)
-		rpmsg_global_lock();
+	rpmsg_global_lock();
 
 	pr_debug("ipc_write_osnib_extend: remap OSHOB addr %pa size %d\n",
 		 &oshob_info->oshob_base, oshob_info->oshob_size);
@@ -1280,17 +1272,9 @@ int intel_scu_ipc_write_osnib_extend(u8 *data, int len, int offset)
 	/* double words of the OSNIB osnib_size bytes will be written.*/
 	/* So the mask is coded on 4 bytes.                                 */
 	sptr_dw_mask = 0xFFFFFFFF;
-	if (!oops_in_progress)
-		ret = rpmsg_send_raw_command(ipcutil_instance,
+	ret = rpmsg_send_raw_command(ipcutil_instance,
 			RP_WRITE_OSNIB, 0, NULL, NULL,
 			0, 0, sptr_dw_mask, 0);
-	else
-		ret = intel_scu_ipc_raw_cmd(
-			RP_WRITE_OSNIB, 0,
-			NULL, 0,
-			NULL, 0,
-			0, sptr_dw_mask);
-
 	if (ret < 0)
 		pr_err("scu_ipc_write_osnib_extend: ipc_write_osnib failed!!\n");
 
@@ -1304,8 +1288,7 @@ exit_osnib:
 unmap_oshob_addr:
 	iounmap(oshob_addr);
 exit:
-	if (!oops_in_progress)
-		rpmsg_global_unlock();
+	rpmsg_global_unlock();
 
 	return ret;
 }
@@ -1892,7 +1875,6 @@ EXPORT_SYMBOL_GPL(intel_scu_ipc_write_oemnib);
 /*
  * This reads the OEMNIB from the internal RAM of the SCU.
  */
-#if 0
 static int intel_scu_ipc_read_oemnib(u8 *oemnib, int len, int offset)
 {
 	int i, ret = 0;
@@ -1962,7 +1944,6 @@ exit:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(intel_scu_ipc_read_oemnib);
-#endif
 
 #ifdef DUMP_OSNIB
 /*
@@ -2178,39 +2159,14 @@ static int intel_scu_ipc_read_osnib_alarm(u8 *alarm)
  * This reads the WAKESRC from the OSNIB
  */
 #ifdef DUMP_OSNIB
-#define WD_KERNEL_PANIC_BIT 0x08 /* bit 3 to set kernel panic */
 static int intel_scu_ipc_read_osnib_wakesrc(u8 *wksrc)
 {
-	u8 wd;
-	int ret;
-
 	pr_debug("intel_scu_ipc_read_osnib_wakesrc: read WAKESRC\n");
 
-	ret = oshob_info->scu_ipc_read_osnib(
+	return oshob_info->scu_ipc_read_osnib(
 			wksrc,
 			1,
 			offsetof(struct scu_ipc_osnib, wakesrc));
-
-	/* Check kernel panic wake source */
-	if (!ret && *wksrc == WAKE_REAL_RESET) {
-		ret = intel_scu_ipc_read_osnib_wd(&wd);
-
-		if (!ret && (wd & WD_KERNEL_PANIC_BIT)) {
-			*wksrc = WAKE_KERNEL_PANIC;
-
-			wd &= (~WD_KERNEL_PANIC_BIT);
-			ret = intel_scu_ipc_write_osnib_wd(&wd);
-			ret |= oshob_info->scu_ipc_write_osnib(
-				wksrc,
-				1,
-				offsetof(struct scu_ipc_osnib, wakesrc));
-
-			pr_debug("%s: wksrc set WAKE_KERNEL_PANIC ret:%d\n",
-					__func__, ret);
-		}
-	}
-
-	return ret;
 }
 #endif
 
@@ -3168,53 +3124,10 @@ exit:
 	return ret;
 }
 
-#ifdef DUMP_OSNIB
-static int intel_ipcutil_panic_handler(struct notifier_block *this,
-					unsigned long event, void *unused)
-{
-	u8 wd;
-
-	int ret;
-
-	pr_debug("%s: Set kernel panic reason to OSNIB\n", __func__);
-
-	ret = intel_scu_ipc_read_osnib_wd(&wd);
-	if (ret) {
-		pr_err("Fail reading kernel panic bit\n");
-		goto out;
-	}
-
-	wd |= WD_KERNEL_PANIC_BIT;
-
-	ret = intel_scu_ipc_write_osnib_wd(&wd);
-	if (ret)
-		pr_err("Fail setting kernel panic bit\n");
-out:
-	return NOTIFY_OK;
-}
-#endif
-
-#ifdef DUMP_OSNIB
-static struct notifier_block intel_ipcutil_panic_notifier = {
-	.notifier_call	= intel_ipcutil_panic_handler,
-	.next		= NULL,
-	.priority	= INT_MAX
-};
-#endif
-
 static int ipcutil_rpmsg_probe(struct rpmsg_channel *rpdev)
 {
 	int ret = 0;
 
-#ifdef DUMP_OSNIB
-	ret = atomic_notifier_chain_register(
-		&panic_notifier_list,
-		&intel_ipcutil_panic_notifier);
-	if (ret) {
-		pr_err("Failed to register notifier!\n");
-		goto err;
-	}
-#endif
 	oshob_info = kmalloc(sizeof(struct scu_ipc_oshob_info), GFP_KERNEL);
 	if (oshob_info == NULL) {
 		pr_err(
@@ -3256,12 +3169,6 @@ misc_err:
 	free_rpmsg_instance(rpdev, &ipcutil_instance);
 out:
 	kfree(oshob_info);
-
-#ifdef DUMP_OSNIB
-	ret = atomic_notifier_chain_unregister(&panic_notifier_list,
-					&intel_ipcutil_panic_notifier);
-err:
-#endif
 	return ret;
 }
 
@@ -3285,10 +3192,6 @@ static void ipcutil_rpmsg_remove(struct rpmsg_channel *rpdev)
 	/* unregister scu_ipc_ioctl from sysfs. */
 	misc_deregister(&scu_ipcutil);
 	free_rpmsg_instance(rpdev, &ipcutil_instance);
-#ifdef DUMP_OSNIB
-	atomic_notifier_chain_unregister(&panic_notifier_list,
-					&intel_ipcutil_panic_notifier);
-#endif
 }
 
 static void ipcutil_rpmsg_cb(struct rpmsg_channel *rpdev, void *data,

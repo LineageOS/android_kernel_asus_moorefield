@@ -46,6 +46,10 @@ static bool intel_dsi_dbi_esd_detection(struct mdfld_dsi_config *dsi_config)
 	int ret;
 	u32 data = 0;
 
+#ifdef CONFIG_SUPPORT_HDMI_NO_DISPLAY
+	return false;
+#else
+
 	PSB_DEBUG_ENTRY("esd\n");
 
 	ret = mdfld_dsi_get_power_mode(dsi_config,
@@ -59,6 +63,7 @@ static bool intel_dsi_dbi_esd_detection(struct mdfld_dsi_config *dsi_config)
 		return true;
 
 	return false;
+#endif
 }
 
 static int __esd_thread(void *data)
