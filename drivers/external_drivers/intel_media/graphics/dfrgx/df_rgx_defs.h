@@ -37,7 +37,7 @@
  * THERMAL_COOLING_DEVICE_MAX_STATE - The maximum cooling state that this
  * driver (as a thermal cooling device by reducing frequency) supports.
  */
-#define THERMAL_COOLING_DEVICE_MAX_STATE	4
+#define THERMAL_COOLING_DEVICE_MAX_STATE	8
 #define NUMBER_OF_LEVELS			8
 #define NUMBER_OF_LEVELS_TNG_A0			4
 #define NUMBER_OF_LEVELS_MAX_FUSE		9

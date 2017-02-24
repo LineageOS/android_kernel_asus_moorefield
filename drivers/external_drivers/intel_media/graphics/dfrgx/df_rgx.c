@@ -565,12 +565,16 @@ static int tcd_get_force_state_override(struct thermal_cooling_device *tcd,
 {
 	struct busfreq_data *bfdata = (struct busfreq_data *) tcd->devdata;
 
-	return scnprintf(buf, PAGE_SIZE,
-			"%lu %lu %lu %lu\n",
+	return scnprintf(buf, PAGE_SIZE, "%lu %lu %lu %lu %lu %lu %lu %lu %lu\n",
 			bfdata->gpudata[0].freq_limit,
 			bfdata->gpudata[1].freq_limit,
 			bfdata->gpudata[2].freq_limit,
-			bfdata->gpudata[3].freq_limit);
+			bfdata->gpudata[3].freq_limit,
+			bfdata->gpudata[4].freq_limit,
+			bfdata->gpudata[5].freq_limit,
+			bfdata->gpudata[6].freq_limit,
+			bfdata->gpudata[7].freq_limit,
+			bfdata->gpudata[8].freq_limit);
 }
 
 /**
@@ -596,16 +600,24 @@ static int tcd_set_force_state_override(struct thermal_cooling_device *tcd,
 	if (df_rgx_is_max_fuse_set())
 		prev_freq = DFRGX_FREQ_640_MHZ;
 
-	sscanf(buf, "%lu %lu %lu %lu\n", &freqs[0],
+	sscanf(buf, "%lu %lu %lu %lu %lu %lu %lu %lu\n", &freqs[0],
 			 &freqs[1],
 			 &freqs[2],
-			 &freqs[3]);
+			 &freqs[3],
+			 &freqs[4],
+			 &freqs[5],
+			 &freqs[6],
+			 &freqs[7]);
 
-	DFRGX_DPF(DFRGX_DEBUG_HIGH, "%s values: %lu %lu %lu %lu\n", __func__,
+	DFRGX_DPF(DFRGX_DEBUG_HIGH, "%s values: %lu %lu %lu %lu %lu %lu %lu %lu\n", __func__,
 			freqs[0],
 			freqs[1],
 			freqs[2],
-			freqs[3]);
+			freqs[3],
+			freqs[4],
+			freqs[5],
+			freqs[6],
+			freqs[7]);
 
 	for (i = 0; (i < THERMAL_COOLING_DEVICE_MAX_STATE) &&
 				df_rgx_is_valid_freq(freqs[i]) &&
@@ -737,11 +749,11 @@ static int df_rgx_busfreq_probe(struct platform_device *pdev)
 		df->max_freq = DFRGX_FREQ_320_MHZ;
 	}
 	if (df_rgx_is_max_fuse_set()) {
-		df->min_freq = DFRGX_FREQ_457_MHZ;
+		df->min_freq = DF_RGX_FREQ_KHZ_MIN;
 		df->max_freq = DFRGX_FREQ_640_MHZ;
 	}
 	else {
-		df->min_freq = DFRGX_FREQ_457_MHZ;
+		df->min_freq = DF_RGX_FREQ_KHZ_MIN;
 		df->max_freq = DFRGX_FREQ_533_MHZ;
 	}
 	DFRGX_DPF(DFRGX_DEBUG_HIGH, "%s: dev_id = 0x%x, min_freq = %lu, max_freq = %lu\n",
@@ -750,14 +762,27 @@ static int df_rgx_busfreq_probe(struct platform_device *pdev)
 	bfdata->gbp_cooldv_state_override = -1;
 
 	/* Thermal freq-state mapping after characterization */
-	if (df_rgx_is_max_fuse_set())
+	if (df_rgx_is_max_fuse_set()) {
 		bfdata->gpudata[0].freq_limit = DFRGX_FREQ_640_MHZ;
-	else
+		bfdata->gpudata[1].freq_limit = DFRGX_FREQ_533_MHZ;
+		bfdata->gpudata[2].freq_limit = DFRGX_FREQ_457_MHZ;
+		bfdata->gpudata[3].freq_limit = DFRGX_FREQ_400_MHZ;
+		bfdata->gpudata[4].freq_limit = DFRGX_FREQ_355_MHZ;
+		bfdata->gpudata[5].freq_limit = DFRGX_FREQ_320_MHZ;
+		bfdata->gpudata[6].freq_limit = DFRGX_FREQ_266_MHZ;
+		bfdata->gpudata[7].freq_limit = DFRGX_FREQ_213_MHZ;
+		bfdata->gpudata[8].freq_limit = DFRGX_FREQ_200_MHZ;
+		}
+	else {
 		bfdata->gpudata[0].freq_limit = DFRGX_FREQ_533_MHZ;
-	bfdata->gpudata[1].freq_limit = DFRGX_FREQ_457_MHZ;
-	bfdata->gpudata[2].freq_limit = DFRGX_FREQ_200_MHZ;
-	bfdata->gpudata[3].freq_limit = DFRGX_FREQ_200_MHZ;
-
+		bfdata->gpudata[1].freq_limit = DFRGX_FREQ_457_MHZ;
+		bfdata->gpudata[2].freq_limit = DFRGX_FREQ_400_MHZ;
+		bfdata->gpudata[3].freq_limit = DFRGX_FREQ_355_MHZ;
+		bfdata->gpudata[4].freq_limit = DFRGX_FREQ_320_MHZ;
+		bfdata->gpudata[5].freq_limit = DFRGX_FREQ_266_MHZ;
+		bfdata->gpudata[6].freq_limit = DFRGX_FREQ_213_MHZ;
+		bfdata->gpudata[7].freq_limit = DFRGX_FREQ_200_MHZ;
+	      }
 
 	df_rgx_init_available_freq_table(dev);
 
