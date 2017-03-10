@@ -42,9 +42,10 @@ void f2fs_set_inode_flags(struct inode *inode)
 		new_fl |= S_NOATIME;
 	if (flags & FS_DIRSYNC_FL)
 		new_fl |= S_DIRSYNC;
-	set_mask_bits(&inode->i_flags,
-		S_SYNC|S_APPEND|S_IMMUTABLE|S_NOATIME|S_DIRSYNC, new_fl);
+	inode_set_flags(inode, new_fl,
+			S_SYNC|S_APPEND|S_IMMUTABLE|S_NOATIME|S_DIRSYNC);
 	f2fs_mark_inode_dirty_sync(inode, false);
+
 }
 
 static void __get_inode_rdev(struct inode *inode, struct f2fs_inode *ri)
@@ -373,8 +374,10 @@ void f2fs_evict_inode(struct inode *inode)
 		goto no_delete;
 
 #ifdef CONFIG_F2FS_FAULT_INJECTION
-	if (time_to_inject(sbi, FAULT_EVICT_INODE))
+	if (time_to_inject(sbi, FAULT_EVICT_INODE)) {
+		f2fs_show_injection_info(FAULT_EVICT_INODE);
 		goto no_delete;
+	}
 #endif
 
 	remove_ino_entry(sbi, inode->i_ino, APPEND_INO);
@@ -409,7 +412,10 @@ no_delete:
 	stat_dec_inline_dir(inode);
 	stat_dec_inline_inode(inode);
 
-	invalidate_mapping_pages(NODE_MAPPING(sbi), inode->i_ino, inode->i_ino);
+	/* ino == 0, if f2fs_new_inode() was failed t*/
+	if (inode->i_ino)
+		invalidate_mapping_pages(NODE_MAPPING(sbi), inode->i_ino,
+							inode->i_ino);
 	if (xnid)
 		invalidate_mapping_pages(NODE_MAPPING(sbi), xnid, xnid);
 	if (inode->i_nlink) {
