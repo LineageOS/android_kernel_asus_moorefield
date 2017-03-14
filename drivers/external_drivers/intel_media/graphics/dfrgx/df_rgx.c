@@ -87,6 +87,11 @@
 #include "dev_freq_graphics_pm.h"
 #include "df_rgx_defs.h"
 #include "df_rgx_burst.h"
+#include <dfrgx_utilstats.h>
+#include "dfrgx_interface.h"
+#include "dev_freq_attrib.h"
+
+
 #define DFRGX_GLOBAL_ENABLE_DEFAULT 1
 
 #define DF_RGX_NAME_DEV    "dfrgx"
@@ -356,15 +361,36 @@ static int df_rgx_bus_get_dev_status(struct device *dev,
 				      struct devfreq_dev_status *stat)
 {
 	struct busfreq_data *bfdata = dev_get_drvdata(dev);
+	int StatActiveHigh_ms, StatActiveLow_ms, StatBlocked_ms, StatIdle_ms; //needed to convert 
+							//current 0.01% precision stats to ms.
+
+	struct gpu_util_stats util_stats;
+
+	/*Initialize the data*/
+	memset(&util_stats, 0, sizeof(struct gpu_util_stats));
 
 	DFRGX_DPF(DFRGX_DEBUG_LOW, "%s: entry\n", __func__);
 
 	stat->current_frequency = bfdata->bf_freq_mhz_rlzd * 1000;
 
-	/* FIXME - Compute real utilization statistics. */
-	stat->total_time = 100;
-	stat->busy_time = 50;
+	/*
+	Total time is the sum of all the Cumulative time + high time + blocked time
+	Gpu not always provides valid values so always use an else.
 
+	*/
+	if (gpu_rgx_get_util_stats(&util_stats)) {
+		DFRGX_DPF(DFRGX_DEBUG_HIGH, "GPU stats valid, Using Calculated values.\n");
+		StatActiveHigh_ms = (util_stats.ui32GpuStatActiveHigh * (util_stats.ui32GpuStatActiveLow + util_stats.ui32GpuStatIdle))/10000;
+		StatActiveLow_ms = (util_stats.ui32GpuStatActiveLow * (util_stats.ui32GpuStatActiveLow + util_stats.ui32GpuStatIdle))/10000;
+		StatBlocked_ms = (util_stats.ui32GpuStatBlocked * (util_stats.ui32GpuStatActiveLow + util_stats.ui32GpuStatIdle))/10000;
+		StatIdle_ms = (util_stats.ui32GpuStatIdle * (util_stats.ui32GpuStatActiveLow + util_stats.ui32GpuStatIdle))/10000;
+		stat->total_time = StatActiveHigh_ms + StatActiveLow_ms + StatBlocked_ms + StatIdle_ms;
+		stat->busy_time = StatActiveHigh_ms;
+	} else { //it's not always true that GpuStats returns valid values, so always consider an else.
+		DFRGX_DPF(DFRGX_DEBUG_HIGH, "GPU stats were not valid, Using default values.\n");
+		stat->total_time = 100;
+		stat->busy_time = 50;
+	}
 	return 0;
 }
 
