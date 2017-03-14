@@ -117,12 +117,12 @@ unsigned int df_rgx_request_burst(struct df_rgx_data_s *pdfrgx_data,
 	if (util_percentage > a_governor_profile[pdfrgx_data->g_profile_index].util_th_high
 		&& new_index < pdfrgx_data->g_max_freq_index) {
 		/* Provide recommended burst*/
-		pdfrgx_data->gpu_utilization_record_index = pdfrgx_data->g_max_freq_index;
+		pdfrgx_data->gpu_utilization_record_index = pdfrgx_data->gpu_utilization_record_index + 1;
 		burst = DFRGX_BURST_REQ;
 	} else if (util_percentage < a_governor_profile[pdfrgx_data->g_profile_index].util_th_low
 		&& new_index > pdfrgx_data->g_min_freq_index) {
 		/* Provide recommended unburst*/
-		pdfrgx_data->gpu_utilization_record_index = pdfrgx_data->g_min_freq_index;
+		pdfrgx_data->gpu_utilization_record_index = pdfrgx_data->gpu_utilization_record_index -1;
 		burst = DFRGX_UNBURST_REQ;
 	} else if (new_index < pdfrgx_data->g_min_freq_index) {
 		/* If frequency is throttled, request return to min */
