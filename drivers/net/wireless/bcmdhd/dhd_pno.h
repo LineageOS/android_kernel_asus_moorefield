@@ -47,7 +47,10 @@
 
 #ifdef GSCAN_SUPPORT
 
-#define GSCAN_MAX_CH_BUCKETS         8
+#define GSCAN_MAX_CH_BUCKETS             8
+#define GSCAN_MAX_CHANNELS_IN_BUCKET     32
+#define GSCAN_MAX_AP_CACHE_PER_SCAN      32
+#define GSCAN_MAX_AP_CACHE               320
 #define GSCAN_BG_BAND_MASK             (1 << 0)
 #define GSCAN_A_BAND_MASK              (1 << 1)
 #define GSCAN_DFS_MASK                 (1 << 2)
@@ -252,7 +255,9 @@ typedef struct dhd_pno_gscan_channel_bucket {
 	uint16 band;
 	uint8 report_flag;
 	uint8 num_channels;
-	uint16 chan_list[GSCAN_MAX_CH_BUCKETS];
+	uint16 repeat;
+	uint16 bucket_max_multiple;
+	uint16 chan_list[GSCAN_MAX_CHANNELS_IN_BUCKET];
 } dhd_pno_gscan_channel_bucket_t;
 
 typedef struct dhd_pno_swc_evt_param {
