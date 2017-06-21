@@ -116,11 +116,11 @@ static ssize_t store_hall_sensor_enable(struct device *dev, struct device_attrib
 		unsigned long flags;
 		spin_lock_irqsave(&hall_sensor_dev->mHallSensorLock, flags);
 		if (hall_sensor_dev->enable==0){
-			enable_irq(hall_sensor_dev->irq);
+			enable_irq_wake(hall_sensor_dev->irq);
 			hall_sensor_dev->enable=1;
 		}
 		else if (hall_sensor_dev->enable==1){		
-			disable_irq(hall_sensor_dev->irq);
+			disable_irq_wake(hall_sensor_dev->irq);
 			hall_sensor_dev->enable=0;
 		}
 		spin_unlock_irqrestore(&hall_sensor_dev->mHallSensorLock, flags);
