@@ -175,7 +175,7 @@ struct sst_gain_value {
 	bool mute;
 };
 
-#define SST_GAIN_VOLUME_DEFAULT		(-1440)
+#define SST_GAIN_VOLUME_DEFAULT		(20)
 #define SST_GAIN_RAMP_DURATION_DEFAULT	5 /* timeconstant */
 #define SST_GAIN_MUTE_DEFAULT		true
 
@@ -246,7 +246,7 @@ struct sst_gain_value {
 
 #define SST_GAIN_TC_MIN		5
 #define SST_GAIN_TC_MAX		5000
-#define SST_GAIN_MIN_VALUE	-1440 /* in 0.1 DB units */
+#define SST_GAIN_MIN_VALUE	(SST_GAIN_VOLUME_DEFAULT - 1000) /* in 0.1 DB units */
 #define SST_GAIN_MAX_VALUE	360
 
 struct sst_algo_data {
