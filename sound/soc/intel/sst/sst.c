@@ -80,7 +80,7 @@ static struct mutex drv_ctx_lock;
  * PCM playback as HAL reacts before triggering the recovery
  * Any number below 4s is not ideal for compress usecase
  */
-#define DEFAULT_FW_MONITOR_INTERVAL 4500 /*timer callback interval in ms to check lpe state*/
+#define DEFAULT_FW_MONITOR_INTERVAL 4000 /*timer callback interval in ms to check lpe state*/
 #define MIN_FW_MONITOR_INTERVAL     500
 #define MAX_FW_MONITOR_INTERVAL     20000
 

@@ -175,7 +175,7 @@ struct sst_gain_value {
 	bool mute;
 };
 
-#define SST_GAIN_VOLUME_DEFAULT		(-1440)
+#define SST_GAIN_VOLUME_DEFAULT		(-40)
 #define SST_GAIN_RAMP_DURATION_DEFAULT	5 /* timeconstant */
 #define SST_GAIN_MUTE_DEFAULT		true
 
