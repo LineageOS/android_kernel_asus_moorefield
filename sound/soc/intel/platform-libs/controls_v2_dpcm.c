@@ -1402,7 +1402,8 @@ static int sst_tone_generator_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
-#define GAIN_MUTE	0xFC40
+// Match with SST_COMPR_VOL_MUTE in controls_v2.c
+#define GAIN_MUTE	0xFFF6
 #define GAIN_UNMUTE	0x0000
 static void sst_fill_probe_gain(struct sst_cmd_probe *cmd, int mode)
 {

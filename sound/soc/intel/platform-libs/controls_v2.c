@@ -1668,9 +1668,9 @@ static int sst_compr_vol_set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-/* This value corresponds to two's complement value of -10 or -1dB */
-#define SST_COMPR_VOL_MAX_INTEG_GAIN 0xFFF6
-#define SST_COMPR_VOL_MUTE 0xFA60 /* 2's complement of -1440 or -144dB*/
+/* This value corresponds to two's complement value of 360 or +36dB */
+#define SST_COMPR_VOL_MAX_INTEG_GAIN 0x0168
+#define SST_COMPR_VOL_MUTE 0xFFF6 /* 2's complement of -10 or -1dB */
 
 
 static const struct snd_kcontrol_new sst_mrfld_controls[] = {

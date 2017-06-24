@@ -175,9 +175,9 @@ struct sst_gain_value {
 	bool mute;
 };
 
-#define SST_GAIN_VOLUME_DEFAULT		(-1440)
-#define SST_GAIN_RAMP_DURATION_DEFAULT	5 /* timeconstant */
-#define SST_GAIN_MUTE_DEFAULT		true
+#define SST_GAIN_VOLUME_DEFAULT		(-10)
+#define SST_GAIN_RAMP_DURATION_DEFAULT	2 /* timeconstant */
+#define SST_GAIN_MUTE_DEFAULT		false
 
 #define SST_GAIN_KCONTROL_TLV(xname, xhandler_get, xhandler_put, \
 			      xmod, xpipe, xinstance, xtask, tlv_array, xgain_val, \
@@ -244,9 +244,9 @@ struct sst_gain_value {
 		xhandler_get, xhandler_put, xmod, xpipe, xinstance, xtask, tlv_array, \
 		xgain_val, xmin_gain, xmax_gain, xpname) }
 
-#define SST_GAIN_TC_MIN		5
+#define SST_GAIN_TC_MIN		3600
 #define SST_GAIN_TC_MAX		5000
-#define SST_GAIN_MIN_VALUE	-1440 /* in 0.1 DB units */
+#define SST_GAIN_MIN_VALUE	-360 /* in 0.1 DB units */
 #define SST_GAIN_MAX_VALUE	360
 
 struct sst_algo_data {
