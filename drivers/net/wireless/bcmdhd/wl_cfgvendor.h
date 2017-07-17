@@ -42,6 +42,14 @@
 #define GSCAN_ATTR_SET4				40
 #define GSCAN_ATTR_SET5				50
 #define GSCAN_ATTR_SET6				60
+#define GSCAN_ATTR_SET7				70
+#define GSCAN_ATTR_SET8				80
+#define GSCAN_ATTR_SET9				90
+#define GSCAN_ATTR_SET10			100
+#define GSCAN_ATTR_SET11			110
+#define GSCAN_ATTR_SET12			120
+#define GSCAN_ATTR_SET13			130
+
 
 typedef enum {
 	/* don't use 0 as a valid subcommand */
@@ -142,6 +150,7 @@ enum gscan_attributes {
     GSCAN_ATTRIBUTE_RSSI_HIGH,
     GSCAN_ATTRIBUTE_HOSTLIST_BSSID_ELEM,
     GSCAN_ATTRIBUTE_HOTLIST_FLUSH,
+	GSCAN_ATTRIBUTE_HOTLIST_BSSID_COUNT,
 
     /* remaining reserved for additional attributes */
     GSCAN_ATTRIBUTE_RSSI_SAMPLE_SIZE = GSCAN_ATTR_SET6,
@@ -149,6 +158,11 @@ enum gscan_attributes {
     GSCAN_ATTRIBUTE_MIN_BREACHING,
     GSCAN_ATTRIBUTE_SIGNIFICANT_CHANGE_BSSIDS,
     GSCAN_ATTRIBUTE_SIGNIFICANT_CHANGE_FLUSH,
+
+    /* Adaptive scan attributes */
+    GSCAN_ATTRIBUTE_BUCKET_STEP_COUNT = GSCAN_ATTR_SET12,
+    GSCAN_ATTRIBUTE_BUCKET_MAX_PERIOD,
+	
     GSCAN_ATTRIBUTE_MAX
 };
 
